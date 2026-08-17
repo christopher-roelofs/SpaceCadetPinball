@@ -39,7 +39,15 @@ enum class InputTypes
 	Keyboard,
 	Mouse,
 	GameController,
+	/*Controller axis pushed past the deadzone. Value is axis * 2, +1 for the positive side.*/
+	GameControllerAxis,
 };
+
+/*Packs a controller axis and the direction it was pushed into a GameInput value.*/
+constexpr int MakeAxisInputValue(int axis, bool positive)
+{
+	return axis * 2 + (positive ? 1 : 0);
+}
 
 struct GameInput
 {
@@ -291,10 +299,15 @@ struct optionsStruct
 	StringOption FontFileName;
 	StringOption Language;
 	BoolOption HideCursor;
+	BoolOption VSync;
+	BoolOption PauseOnFocusLoss;
+	IntOption ControllerAxisDeadzone;
 
 	// Cabinet mode: splits the game over playfield, backglass and DMD screens.
 	BoolOption CabinetMode;
 	StringOption CabinetMediaPath;
+	BoolOption CabinetWindowsOnTop;
+	BoolOption CabinetHideUi;
 
 	// Main window placement, used in single window mode
 	IntOption WindowAnchor;

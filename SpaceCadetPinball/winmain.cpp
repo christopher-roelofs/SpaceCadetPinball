@@ -53,6 +53,19 @@ winmain::DurationMs winmain::SpinThreshold = DurationMs(0.005);
 WelfordState winmain::SleepState{};
 int winmain::CursorIdleCounter = 0;
 
+/*Reads "-flag N" or "-flag=N" from the command line; returns false if absent.*/
+static bool GetCmdLineInt(LPCSTR cmdLine, const char* flag, int& value)
+{
+	auto found = strstr(cmdLine, flag);
+	if (!found)
+		return false;
+
+	auto arg = found + strlen(flag);
+	while (*arg == ' ' || *arg == '=')
+		arg++;
+	return sscanf(arg, "%d", &value) == 1;
+}
+
 int winmain::WinMain(LPCSTR lpCmdLine)
 {
 	std::set_new_handler(memalloc_failure);
@@ -171,6 +184,33 @@ int winmain::WinMain(LPCSTR lpCmdLine)
 			options::ResetAllOptions();
 		}
 
+		// Command line overrides, so a cabinet frontend can drive the layout without
+		// editing the settings file. The stored values are restored before saving, so a
+		// launcher's flags never overwrite what the user configured.
+		std::vector<std::pair<IntOption*, int>> overriddenInts;
+		std::vector<std::pair<BoolOption*, bool>> overriddenBools;
+		auto overrideBool = [&overriddenBools](BoolOption& option, bool value)
+		{
+			overriddenBools.emplace_back(&option, option.V);
+			option = value;
+		};
+		auto overrideDisplay = [&overriddenInts, lpCmdLine](IntOption& option, const char* flag)
+		{
+			int display;
+			if (!GetCmdLineInt(lpCmdLine, flag, display))
+				return;
+			overriddenInts.emplace_back(&option, option.V);
+			option = display;
+		};
+
+		if (strstr(lpCmdLine, "-nocabinet"))
+			overrideBool(Options.CabinetMode, false);
+		else if (strstr(lpCmdLine, "-cabinet"))
+			overrideBool(Options.CabinetMode, true);
+		overrideDisplay(Options.PlayfieldDisplay, "-playfield-display");
+		overrideDisplay(Options.BackglassDisplay, "-backglass-display");
+		overrideDisplay(Options.DmdDisplay, "-dmd-display");
+
 		if (!Options.FontFileName.V.empty())
 		{
 			ImVector<ImWchar> ranges;
@@ -262,6 +302,7 @@ int winmain::WinMain(LPCSTR lpCmdLine)
 		// Creates the backglass and DMD windows, and places the playfield window
 		cabinet::Init();
 		fullscrn::window_size_changed();
+		ApplyVSync();
 
 		if (strstr(lpCmdLine, "-demo"))
 			pb::toggle_demo();
@@ -271,6 +312,13 @@ int winmain::WinMain(LPCSTR lpCmdLine)
 		MainLoop();
 
 		cabinet::Shutdown();
+
+		// Put back whatever the command line overrode, so it is not persisted
+		for (auto& entry : overriddenInts)
+			*entry.first = entry.second;
+		for (auto& entry : overriddenBools)
+			*entry.first = entry.second;
+
 		options::uninit();
 		midi::music_shutdown();
 		Sound::Close();
@@ -684,6 +732,15 @@ void winmain::RenderUi()
 				}
 				ImGui::Separator();
 
+				if (ImGui::MenuItem("VSync", nullptr, Options.VSync))
+				{
+					Options.VSync ^= true;
+					ApplyVSync();
+				}
+				if (ImGui::MenuItem("Pause On Focus Loss", nullptr, Options.PauseOnFocusLoss))
+				{
+					Options.PauseOnFocusLoss ^= true;
+				}
 				if (ImGui::MenuItem("Hide Cursor", nullptr, Options.HideCursor))
 				{
 					Options.HideCursor ^= true;
@@ -1077,6 +1134,10 @@ int winmain::event_handler(const SDL_Event* event)
 				break;
 			}
 
+			// A cabinet keeps playing when something else grabs focus
+			if (!Options.PauseOnFocusLoss)
+				break;
+
 			activated = false;
 			// A cabinet stays fullscreen; it has nothing to alt-tab to
 			if (!cabinet::CabinetModeActive())
@@ -1116,6 +1177,37 @@ int winmain::event_handler(const SDL_Event* event)
 		break;
 	case SDL_CONTROLLERBUTTONUP:
 		pb::InputUp({InputTypes::GameController, event->cbutton.button});
+		break;
+	case SDL_CONTROLLERAXISMOTION:
+		{
+			// Cabinet hardware (analog plungers, nudge sensors) reports axes, not buttons.
+			// Each axis half is turned into a press/release pair around the deadzone, with
+			// hysteresis so a resting axis cannot chatter.
+			static bool axisHeld[SDL_CONTROLLER_AXIS_MAX][2]{};
+			auto axis = event->caxis.axis;
+			if (axis < 0 || axis >= SDL_CONTROLLER_AXIS_MAX)
+				break;
+
+			auto deadzone = Clamp(Options.ControllerAxisDeadzone.V, 1000, 32000);
+			auto release = deadzone * 3 / 4;
+			for (auto positive = 0; positive <= 1; positive++)
+			{
+				auto value = positive ? event->caxis.value : -event->caxis.value;
+				auto& held = axisHeld[axis][positive];
+				GameInput input{InputTypes::GameControllerAxis, MakeAxisInputValue(axis, positive != 0)};
+
+				if (!held && value >= deadzone)
+				{
+					held = true;
+					pb::InputDown(input);
+				}
+				else if (held && value < release)
+				{
+					held = false;
+					pb::InputUp(input);
+				}
+			}
+		}
 		break;
 	default: ;
 	}
@@ -1367,6 +1459,18 @@ void winmain::Restart()
 	restart = true;
 	SDL_Event event{SDL_QUIT};
 	SDL_PushEvent(&event);
+}
+
+void winmain::ApplyVSync()
+{
+#if SDL_VERSION_ATLEAST(2, 0, 18)
+	// Tearing is very visible on a cabinet playfield. Toggling at runtime needs 2.0.18;
+	// on older SDL the renderers keep whatever they were created with.
+	auto enabled = Options.VSync ? 1 : 0;
+	if (Renderer)
+		SDL_RenderSetVSync(Renderer, enabled);
+	cabinet::ApplyVSync(enabled);
+#endif
 }
 
 void winmain::UpdateFrameRate()

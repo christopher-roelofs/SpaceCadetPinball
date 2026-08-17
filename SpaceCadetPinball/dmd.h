@@ -30,6 +30,9 @@ public:
 	void SetDot(int x, int y, uint8_t level);
 	uint8_t GetDot(int x, int y) const;
 
+	/*Cheap hash of the dot pattern, for skipping redraws of unchanged content.*/
+	uint64_t ContentHash() const;
+
 	/*Text is drawn uppercase, the way real dot matrix displays do it.*/
 	void DrawText(int x, int y, const char* text, int scale = 1, uint8_t level = 255);
 	void DrawText(Align align, int y, const char* text, int scale = 1, uint8_t level = 255);

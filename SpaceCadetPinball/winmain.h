@@ -86,6 +86,8 @@ public:
 	static void pause(bool toggle = true);
 	static void Restart();
 	static void UpdateFrameRate();
+	/*Applies the VSync option to every renderer.*/
+	static void ApplyVSync();
 	static void HandleGameBinding(GameBindings binding, bool shortcut);
 private:
 	static int return_value;

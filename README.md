@@ -35,7 +35,19 @@ With cabinet mode on, up to three screens are used:
   grows the score digits.
 
 Each screen has its own display index, position, size and fullscreen flag. A size of 0 means
-"fill the chosen display".
+"fill the chosen display". The backglass and DMD windows stay above other windows and out of
+the taskbar, and cabinet mode hides the menu bar and the mouse cursor; both are optional.
+
+Cabinet hardware and frontends are supported through:
+
+* **Analog axes** - controller axes can be bound like buttons in `Player Controls`, for analog
+  plungers and nudge sensors. An axis counts as pressed past the configurable deadzone.
+* **VSync** - on by default, since tearing is obvious on a large playfield screen.
+* **Pause On Focus Loss** - turn it off so a cabinet keeps playing when a frontend or an
+  overlay takes focus. Otherwise losing focus mutes the audio and stops the game.
+* **Command line overrides** - `-cabinet` / `-nocabinet`, plus `-playfield-display N`,
+  `-backglass-display N` and `-dmd-display N`, let a frontend drive the layout without
+  touching the settings file. Overrides are not saved back over the stored options.
 
 ## Known source ports
 

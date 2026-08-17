@@ -25,6 +25,9 @@ DotMatrix cabinet::DmdCanvas{128, 48};
 ColorRgba cabinet::DmdColor = ColorRgba{255, 160, 32, 255};
 bool cabinet::Initialized = false;
 
+// The backglass is a static image: repaint it only when it or its window changes
+static bool BackglassDirty = true;
+
 static ColorRgba ParseHexColor(const std::string& text, ColorRgba defaultColor)
 {
 	auto start = text.find_first_not_of(" \t#");
@@ -219,12 +222,21 @@ bool cabinet::CreateScreen(Screen& screen, const char* title, int display, int x
 	UsingSdlHint noActivation{SDL_HINT_WINDOW_NO_ACTIVATION_WHEN_SHOWN, "1"};
 #endif
 
+	Uint32 flags = SDL_WINDOW_BORDERLESS | (fullscreen ? SDL_WINDOW_FULLSCREEN_DESKTOP : 0);
+#if SDL_VERSION_ATLEAST(2, 0, 5)
+	// Keep a frontend or a desktop panel from covering the backglass, and keep these
+	// output only windows out of the taskbar.
+	flags |= SDL_WINDOW_SKIP_TASKBAR;
+	if (options::Options.CabinetWindowsOnTop)
+		flags |= SDL_WINDOW_ALWAYS_ON_TOP;
+#endif
+
 	screen.Window = SDL_CreateWindow
 	(
 		title,
 		bounds.x + x, bounds.y + y,
 		width, height,
-		SDL_WINDOW_BORDERLESS | (fullscreen ? SDL_WINDOW_FULLSCREEN_DESKTOP : 0)
+		flags
 	);
 	if (!screen.Window)
 	{
@@ -245,6 +257,10 @@ bool cabinet::CreateScreen(Screen& screen, const char* title, int display, int x
 		screen.Destroy();
 		return false;
 	}
+
+	SDL_RendererInfo info{};
+	if (!SDL_GetRendererInfo(screen.Renderer, &info))
+		printf("Cabinet: %s using SDL renderer: %s\n", title, info.name);
 
 	SDL_SetRenderDrawColor(screen.Renderer, 0, 0, 0, 255);
 	SDL_RenderClear(screen.Renderer);
@@ -291,6 +307,14 @@ void cabinet::Init()
 	DmdColor = ParseHexColor(opt.DmdDotColor.V, ColorRgba{255, 160, 32, 255});
 
 	Initialized = true;
+
+	if (opt.CabinetHideUi)
+	{
+		// A cabinet has no mouse and no room for a menu bar over the playfield
+		opt.ShowMenu = false;
+		opt.HideCursor = true;
+	}
+
 	LoadBackglassImage();
 	ApplyMainWindowLayout();
 
@@ -304,6 +328,18 @@ void cabinet::Shutdown()
 	Backglass.Destroy();
 	Dmd.Destroy();
 	Initialized = false;
+}
+
+void cabinet::ApplyVSync(int enabled)
+{
+#if SDL_VERSION_ATLEAST(2, 0, 18)
+	if (Backglass.Renderer)
+		SDL_RenderSetVSync(Backglass.Renderer, enabled);
+	if (Dmd.Renderer)
+		SDL_RenderSetVSync(Dmd.Renderer, enabled);
+#else
+	(void)enabled;
+#endif
 }
 
 void cabinet::Reload()
@@ -352,6 +388,7 @@ void cabinet::UnloadBackglassImage()
 void cabinet::LoadBackglassImage()
 {
 	UnloadBackglassImage();
+	BackglassDirty = true;
 	if (!Backglass.Valid())
 		return;
 
@@ -458,8 +495,9 @@ std::string cabinet::GetFieldText(TextField field)
 
 void cabinet::RenderBackglass()
 {
-	if (!Backglass.Valid())
+	if (!Backglass.Valid() || !BackglassDirty)
 		return;
+	BackglassDirty = false;
 
 	SDL_SetRenderDrawColor(Backglass.Renderer, 0, 0, 0, 255);
 	SDL_RenderClear(Backglass.Renderer);
@@ -625,6 +663,19 @@ void cabinet::RenderDmd()
 		}
 	}
 
+	// Drawing thousands of dots on a second GL context costs milliseconds a frame, and the
+	// panel only changes when the text does. Redraw only when the dot pattern differs.
+	static uint64_t lastContentHash = 0;
+	static ColorRgba lastColor = ColorRgba{0};
+	static bool lastUnlitDots = false;
+	auto contentHash = DmdCanvas.ContentHash();
+	if (contentHash == lastContentHash && lastColor.Color == DmdColor.Color &&
+		lastUnlitDots == options::Options.DmdShowUnlitDots.V)
+		return;
+	lastContentHash = contentHash;
+	lastColor = DmdColor;
+	lastUnlitDots = options::Options.DmdShowUnlitDots;
+
 	int width, height;
 	SDL_GetRendererOutputSize(Dmd.Renderer, &width, &height);
 	SDL_SetRenderDrawColor(Dmd.Renderer, 0, 0, 0, 255);
@@ -687,6 +738,12 @@ bool cabinet::HandleWindowEvent(const SDL_Event& event)
 	case SDL_WINDOWEVENT_FOCUS_GAINED:
 		// Aux windows are output only, hand focus back to the playfield
 		SDL_RaiseWindow(winmain::MainWindow);
+		break;
+	case SDL_WINDOWEVENT_EXPOSED:
+	case SDL_WINDOWEVENT_SHOWN:
+	case SDL_WINDOWEVENT_RESIZED:
+	case SDL_WINDOWEVENT_SIZE_CHANGED:
+		BackglassDirty = true;
 		break;
 	default:
 		break;
@@ -771,6 +828,8 @@ void cabinet::RenderSettingsUi()
 			opt.BackglassWidth.V, opt.BackglassHeight.V, opt.BackglassFullscreen.V,
 			opt.DmdEnabled.V, opt.DmdDisplay.V, opt.DmdX.V, opt.DmdY.V, opt.DmdWidth.V, opt.DmdHeight.V,
 			opt.DmdFullscreen.V, opt.DmdColumns.V, opt.DmdRows.V, opt.DmdShowUnlitDots.V,
+			opt.CabinetWindowsOnTop.V, opt.CabinetHideUi.V, opt.ControllerAxisDeadzone.V,
+			opt.ShowMenu.V, opt.HideCursor.V,
 		};
 
 		std::string result;
@@ -790,6 +849,22 @@ void cabinet::RenderSettingsUi()
 		screensChanged |= ImGui::Checkbox("Cabinet mode", &opt.CabinetMode.V);
 		ImGui::SameLine();
 		ImGui::TextDisabled("(off = single window)");
+
+		if (opt.CabinetMode)
+		{
+			screensChanged |= ImGui::Checkbox("Keep backglass and DMD above other windows",
+			                                  &opt.CabinetWindowsOnTop.V);
+			if (ImGui::Checkbox("Hide menu bar and cursor", &opt.CabinetHideUi.V) && opt.CabinetHideUi)
+			{
+				opt.ShowMenu = false;
+				opt.HideCursor = true;
+			}
+		}
+
+		ImGui::TextUnformatted("Controller axis deadzone");
+		ImGui::SliderInt("##Deadzone", &opt.ControllerAxisDeadzone.V, 1000, 32000, "%d",
+		                 ImGuiSliderFlags_AlwaysClamp);
+		ImGui::TextDisabled("For analog plunger and nudge hardware. Bind axes in Player Controls.");
 
 		ImGui::Separator();
 		if (ImGui::CollapsingHeader("Playfield", ImGuiTreeNodeFlags_DefaultOpen))

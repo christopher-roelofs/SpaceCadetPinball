@@ -114,6 +114,22 @@ uint8_t DotMatrix::GetDot(int x, int y) const
 	return dots[static_cast<size_t>(y) * columns + x];
 }
 
+uint64_t DotMatrix::ContentHash() const
+{
+	// FNV-1a over the dot buffer, plus the dimensions
+	uint64_t hash = 14695981039346656037ull;
+	auto mix = [&hash](uint64_t value)
+	{
+		hash = (hash ^ value) * 1099511628211ull;
+	};
+
+	mix(static_cast<uint64_t>(columns));
+	mix(static_cast<uint64_t>(rows));
+	for (auto dot : dots)
+		mix(dot);
+	return hash;
+}
+
 const uint8_t* DotMatrix::GetGlyph(char ch)
 {
 	auto c = static_cast<unsigned char>(ch);
@@ -202,6 +218,9 @@ void DotMatrix::Present(SDL_Renderer* renderer, const SDL_Rect& dest, ColorRgba 
 	SDL_GetRenderDrawBlendMode(renderer, &prevBlendMode);
 	SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
 
+	// Dots are grouped by brightness so that each group is one SDL_RenderFillRects call.
+	// A 128x48 panel is over 6000 dots; drawing them one at a time cost several ms a frame.
+	std::map<uint8_t, std::vector<SDL_Rect>> batches;
 	for (auto row = 0; row < rows; row++)
 	{
 		for (auto col = 0; col < columns; col++)
@@ -210,31 +229,36 @@ void DotMatrix::Present(SDL_Renderer* renderer, const SDL_Rect& dest, ColorRgba 
 			if (!level && !drawUnlitDots)
 				continue;
 
-			ColorRgba color = level ? onColor : offColor;
-			if (level && level != 255)
-			{
-				// Dim lit dots by fading them towards the unlit color
-				auto blend = [level](uint8_t on, uint8_t off)
-				{
-					return static_cast<uint8_t>((on * level + off * (255 - level)) / 255);
-				};
-				color = ColorRgba{
-					blend(onColor.GetRed(), offColor.GetRed()),
-					blend(onColor.GetGreen(), offColor.GetGreen()),
-					blend(onColor.GetBlue(), offColor.GetBlue()),
-					onColor.GetAlpha()
-				};
-			}
-
-			SDL_SetRenderDrawColor(renderer, color.GetRed(), color.GetGreen(), color.GetBlue(), color.GetAlpha());
-			SDL_Rect dotRect
+			batches[level].push_back(SDL_Rect
 			{
 				originX + col * pitch + dotOffset,
 				originY + row * pitch + dotOffset,
 				dotSize, dotSize
-			};
-			SDL_RenderFillRect(renderer, &dotRect);
+			});
 		}
+	}
+
+	for (const auto& batch : batches)
+	{
+		auto level = batch.first;
+		ColorRgba color = level ? onColor : offColor;
+		if (level && level != 255)
+		{
+			// Dim lit dots by fading them towards the unlit color
+			auto blend = [level](uint8_t on, uint8_t off)
+			{
+				return static_cast<uint8_t>((on * level + off * (255 - level)) / 255);
+			};
+			color = ColorRgba{
+				blend(onColor.GetRed(), offColor.GetRed()),
+				blend(onColor.GetGreen(), offColor.GetGreen()),
+				blend(onColor.GetBlue(), offColor.GetBlue()),
+				onColor.GetAlpha()
+			};
+		}
+
+		SDL_SetRenderDrawColor(renderer, color.GetRed(), color.GetGreen(), color.GetBlue(), color.GetAlpha());
+		SDL_RenderFillRects(renderer, batch.second.data(), static_cast<int>(batch.second.size()));
 	}
 
 	SDL_SetRenderDrawBlendMode(renderer, prevBlendMode);

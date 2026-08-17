@@ -153,9 +153,14 @@ optionsStruct options::Options
 	{"FontFileName", ""},
 	{"Language", translations::GetCurrentLanguage()->ShortName},
 	{"Hide Cursor", false},
+	{"VSync", true},
+	{"Pause On Focus Loss", true},
+	{"Controller Axis Deadzone", 16000},
 
 	{"Cabinet Mode", false},
 	{"Cabinet Media Path", "cabinet"},
+	{"Cabinet Windows On Top", true},
+	{"Cabinet Hide UI", true},
 
 	{"Window Anchor", static_cast<int>(CabinetAnchor::Centered)},
 	{"Window Display", -1},
@@ -567,6 +572,9 @@ std::string GameInput::GetFullInputDescription() const
 	case InputTypes::GameController:
 		prefix = "Controller\n";
 		break;
+	case InputTypes::GameControllerAxis:
+		prefix = "Controller Axis\n";
+		break;
 	case InputTypes::None:
 	default:
 		return "Unused";
@@ -629,6 +637,21 @@ std::string GameInput::GetShortInputDescription() const
 			keyName = controllerButtons[Value];
 		else
 			keyName = "CButton" + std::to_string(Value);
+		break;
+	case InputTypes::GameControllerAxis:
+		{
+			static LPCSTR axisNames[]
+			{
+				"LeftX", "LeftY", "RightX", "RightY", "LeftTrigger", "RightTrigger",
+			};
+
+			auto axis = Value / 2;
+			auto direction = Value % 2 ? "+" : "-";
+			if (axis >= 0 && axis < static_cast<int>(IM_ARRAYSIZE(axisNames)))
+				keyName = std::string(axisNames[axis]) + direction;
+			else
+				keyName = "CAxis" + std::to_string(axis) + direction;
+		}
 		break;
 	case InputTypes::None:
 	default:

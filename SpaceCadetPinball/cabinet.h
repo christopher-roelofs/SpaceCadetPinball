@@ -56,6 +56,9 @@ public:
 	/*Rebuilds the aux windows and reloads backglass media, used after option changes.*/
 	static void Reload();
 
+	/*Applies a VSync setting to the backglass and DMD renderers.*/
+	static void ApplyVSync(int enabled);
+
 	static void RenderSettingsUi();
 
 	static const char* AnchorName(CabinetAnchor anchor);
