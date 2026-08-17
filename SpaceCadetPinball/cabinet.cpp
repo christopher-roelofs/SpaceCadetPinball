@@ -21,7 +21,7 @@ bool cabinet::ShowSettingsDialog = false;
 cabinet::Screen cabinet::Backglass{};
 cabinet::Screen cabinet::Dmd{};
 SDL_Texture* cabinet::BackglassImage = nullptr;
-DotMatrix cabinet::DmdCanvas{128, 32};
+DotMatrix cabinet::DmdCanvas{128, 48};
 ColorRgba cabinet::DmdColor = ColorRgba{255, 160, 32, 255};
 bool cabinet::Initialized = false;
 
@@ -418,33 +418,31 @@ std::string cabinet::GetFieldText(TextField field)
 	case TextField::Player:
 		if (!table || pb::game_mode != GameModes::InGame)
 			return "";
-		if (table->PlayerCount > 1)
-			snprintf(buffer, sizeof buffer, "PLAYER %d", table->CurrentPlayer + 1);
-		else
-			snprintf(buffer, sizeof buffer, "3D PINBALL");
+		// Mirrors the player_number1 reel, which is shown even in single player
+		snprintf(buffer, sizeof buffer, "PLAYER %d", table->CurrentPlayer + 1);
 		return buffer;
 	case TextField::Ball:
 		if (!table)
 			return "";
 		if (pb::game_mode != GameModes::InGame)
 			return "GAME OVER";
-		snprintf(buffer, sizeof buffer, "BALL %d", table->BallCount);
+		// BallCount is balls remaining; the ball in play is what a cabinet shows.
+		// Same expression the original sidebar reel uses.
+		snprintf(buffer, sizeof buffer, "BALL %d",
+		         Clamp(table->MaxBallCount - table->BallCount + 1, 1, table->MaxBallCount));
 		return buffer;
-	case TextField::Message:
+	case TextField::Info:
+	case TextField::Mission:
 		{
-			// Transient messages take priority over the standing mission text
-			const TTextBox* boxes[]{pb::MissTextBox, pb::InfoTextBox};
-			for (auto box : boxes)
+			// The sidebar shows both boxes at once. Despite the name, pb::MissTextBox is
+			// the "mission_text_box" component; pb::InfoTextBox is the short status line.
+			auto box = field == TextField::Info ? pb::InfoTextBox : pb::MissTextBox;
+			if (box && box->CurrentMessage && box->CurrentMessage->Text)
 			{
-				if (box && box->CurrentMessage && box->CurrentMessage->Text)
-				{
-					std::string message = box->CurrentMessage->Text;
-					std::replace(message.begin(), message.end(), '\n', ' ');
-					std::replace(message.begin(), message.end(), '\r', ' ');
-					message = Trim(message);
-					if (!message.empty())
-						return message;
-				}
+				std::string message = box->CurrentMessage->Text;
+				std::replace(message.begin(), message.end(), '\n', ' ');
+				std::replace(message.begin(), message.end(), '\r', ' ');
+				return Trim(message);
 			}
 			return "";
 		}
@@ -530,10 +528,28 @@ void cabinet::RenderDmd()
 	auto columns = DmdCanvas.Columns(), rows = DmdCanvas.Rows();
 	DmdCanvas.Clear();
 
-	// Three bands: a status line, the score, then as many message lines as fit
-	auto smallScale = std::max(1, rows / 32);
+	// Three bands: a status line, the score, then the message lines.
+	// Small text is sized by panel width, not height: at 128 columns scale 1 gives 21
+	// characters per line, and scaling it up with the row count would starve the text.
+	auto smallScale = std::max(1, columns / 128);
 	auto smallHeight = DotMatrix::TextHeight(smallScale);
-	auto scoreScale = std::max(1, (rows - 2 * smallHeight - 4) / DotMatrix::GlyphHeight);
+	auto lineStep = smallHeight + 1;
+
+	// Message lines are reserved before the score claims what is left, so the mission text
+	// never gets squeezed out. DesiredMessageLines is the info line plus two mission lines.
+	constexpr auto DesiredMessageLines = 3;
+	auto messageLines = 0, scoreScale = 1;
+	for (auto candidate = DesiredMessageLines; candidate >= 0; candidate--)
+	{
+		auto scoreSpace = rows - lineStep - candidate * lineStep - 2;
+		auto scale = scoreSpace / DotMatrix::GlyphHeight;
+		if (scale >= 1)
+		{
+			messageLines = candidate;
+			scoreScale = std::min(scale, 6);
+			break;
+		}
+	}
 
 	auto table = pb::MainTable;
 	auto tilted = table && table->TiltLockFlag;
@@ -554,35 +570,58 @@ void cabinet::RenderDmd()
 		scoreScale--;
 		scoreWidth = DotMatrix::TextWidth(scoreText.c_str(), scoreScale);
 	}
-	auto scoreY = smallHeight + 2;
+	auto scoreY = lineStep;
 	DmdCanvas.DrawText(columns - scoreWidth - 1, scoreY, scoreText.c_str(), scoreScale);
 
-	// Message area: everything below the score, wrapped over as many lines as there is room for
+	// Message area: the sidebar shows the status box and the mission box at the same time,
+	// so both get a share of the reserved lines here.
 	auto messageY = scoreY + DotMatrix::TextHeight(scoreScale) + 2;
-	auto messageRows = (rows - messageY) / (smallHeight + 1);
-	auto message = GetFieldText(TextField::Message);
-	if (message.empty())
-		message = GetFieldText(TextField::HighScore);
-
-	if (messageRows > 0 && !message.empty())
+	auto messageRows = std::min(messageLines, (rows - messageY) / lineStep);
+	if (messageRows > 0)
 	{
-		auto lines = WrapText(message, smallScale, columns - 2);
+		std::vector<std::string> lines;
+		auto info = GetFieldText(TextField::Info);
+		auto mission = GetFieldText(TextField::Mission);
+		if (info.empty() && mission.empty())
+			mission = GetFieldText(TextField::HighScore);
+
+		// Sidebar order: the short status line, then the mission text below it
+		if (!info.empty())
+			lines = WrapText(info, smallScale, columns - 2);
+		if (!mission.empty() && static_cast<int>(lines.size()) < messageRows)
+		{
+			for (auto& line : WrapText(mission, smallScale, columns - 2))
+				lines.push_back(line);
+		}
+
 		if (static_cast<int>(lines.size()) <= messageRows)
 		{
 			for (auto i = 0; i < static_cast<int>(lines.size()); i++)
 			{
 				auto lineWidth = DotMatrix::TextWidth(lines[i].c_str(), smallScale);
-				DmdCanvas.DrawText((columns - lineWidth) / 2, messageY + i * (smallHeight + 1), lines[i].c_str(),
+				DmdCanvas.DrawText((columns - lineWidth) / 2, messageY + i * lineStep, lines[i].c_str(),
 				                   smallScale);
 			}
 		}
 		else
 		{
-			// Too long even wrapped: scroll it through the available lines
-			auto lineWidth = DotMatrix::TextWidth(message.c_str(), smallScale);
-			auto span = lineWidth + columns;
+			// More text than lines: show what fits, then scroll the remainder on the last line
+			auto staticLines = messageRows - 1;
+			for (auto i = 0; i < staticLines; i++)
+			{
+				auto lineWidth = DotMatrix::TextWidth(lines[i].c_str(), smallScale);
+				DmdCanvas.DrawText((columns - lineWidth) / 2, messageY + i * lineStep, lines[i].c_str(),
+				                   smallScale);
+			}
+
+			std::string remainder;
+			for (auto i = staticLines; i < static_cast<int>(lines.size()); i++)
+				remainder += (remainder.empty() ? "" : " ") + lines[i];
+
+			auto span = DotMatrix::TextWidth(remainder.c_str(), smallScale) + columns;
 			auto offset = static_cast<int>((SDL_GetTicks() / 30) % static_cast<Uint32>(span));
-			DmdCanvas.DrawText(columns - offset, messageY, message.c_str(), smallScale);
+			DmdCanvas.DrawText(columns - offset, messageY + staticLines * lineStep, remainder.c_str(),
+			                   smallScale);
 		}
 	}
 
@@ -716,6 +755,31 @@ void cabinet::RenderSettingsUi()
 		return;
 
 	auto& opt = options::Options;
+
+	// Options only reach the settings store on a clean shutdown, so anything edited here
+	// would be lost to a crash or a kill. Snapshot, then flush if the user changed something.
+	auto signature = [&opt]
+	{
+		const int values[]
+		{
+			opt.CabinetMode.V,
+			opt.WindowAnchor.V, opt.WindowDisplay.V, opt.WindowX.V, opt.WindowY.V,
+			opt.WindowWidth.V, opt.WindowHeight.V,
+			opt.PlayfieldRotation.V, opt.PlayfieldDisplay.V, opt.PlayfieldX.V, opt.PlayfieldY.V,
+			opt.PlayfieldWidth.V, opt.PlayfieldHeight.V, opt.PlayfieldFullscreen.V, opt.PlayfieldHideSidebar.V,
+			opt.BackglassEnabled.V, opt.BackglassDisplay.V, opt.BackglassX.V, opt.BackglassY.V,
+			opt.BackglassWidth.V, opt.BackglassHeight.V, opt.BackglassFullscreen.V,
+			opt.DmdEnabled.V, opt.DmdDisplay.V, opt.DmdX.V, opt.DmdY.V, opt.DmdWidth.V, opt.DmdHeight.V,
+			opt.DmdFullscreen.V, opt.DmdColumns.V, opt.DmdRows.V, opt.DmdShowUnlitDots.V,
+		};
+
+		std::string result;
+		for (auto value : values)
+			result += std::to_string(value) + '|';
+		return result + opt.CabinetMediaPath.V + '|' + opt.BackglassImage.V + '|' + opt.DmdDotColor.V;
+	};
+	auto signatureBefore = signature();
+
 	ImGui::SetNextWindowSize(ImVec2{560, 640}, ImGuiCond_FirstUseEver);
 	if (ImGui::Begin("Cabinet Settings", &ShowSettingsDialog))
 	{
@@ -835,5 +899,8 @@ void cabinet::RenderSettingsUi()
 				LoadBackglassImage();
 		}
 	}
+
+	if (signature() != signatureBefore)
+		options::SaveAll();
 	ImGui::End();
 }

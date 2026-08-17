@@ -67,7 +67,8 @@ private:
 		Score,
 		Player,
 		Ball,
-		Message,
+		Info,
+		Mission,
 		HighScore,
 		Title,
 	};

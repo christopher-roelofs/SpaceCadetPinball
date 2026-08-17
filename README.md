@@ -29,8 +29,10 @@ With cabinet mode on, up to three screens are used:
   relative to the game data folder) or at an absolute path. PNG and JPG need `SDL2_image` at
   build time, otherwise use BMP. Disable this screen if a frontend already draws a backglass.
 * **DMD** - a simulated dot matrix display carrying player, ball, score and mission messages.
-  The dot grid size (default 128x32), dot color and unlit dot visibility are configurable;
-  the layout adapts to the grid and wraps messages over as many lines as fit.
+  The dot grid size (default 128x48), dot color and unlit dot visibility are configurable.
+  The layout reserves the status and mission lines first, so they are never squeezed out by
+  the score, and it adapts to the grid: a shorter grid drops message lines, a taller one
+  grows the score digits.
 
 Each screen has its own display index, position, size and fullscreen flag. A size of 0 means
 "fill the chosen display".

@@ -187,10 +187,10 @@ optionsStruct options::Options
 	{"DMD X", 0},
 	{"DMD Y", 560},
 	{"DMD Width", 768},
-	{"DMD Height", 192},
+	{"DMD Height", 288},
 	{"DMD Fullscreen", false},
 	{"DMD Columns", 128},
-	{"DMD Rows", 32},
+	{"DMD Rows", 48},
 	{"DMD Dot Color", "FFA020"},
 	{"DMD Show Unlit Dots", true},
 };
@@ -224,6 +224,13 @@ void options::InitSecondary()
 	if (Options.Resolution >= 0 && Options.Resolution > maxRes)
 		Options.Resolution = maxRes;
 	fullscrn::SetResolution(Options.Resolution == -1 ? maxRes : Options.Resolution);
+}
+
+void options::SaveAll()
+{
+	// SetSetting marks the ImGui ini dirty, which flushes it to disk shortly after
+	for (const auto opt : AllOptions)
+		opt->Save();
 }
 
 void options::uninit()
