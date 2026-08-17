@@ -1,6 +1,7 @@
 #include "pch.h"
 #include "render.h"
 
+#include "cabinet.h"
 #include "fullscrn.h"
 #include "GroupData.h"
 #include "options.h"
@@ -452,13 +453,50 @@ void render::SpriteViewer(bool* show)
 	ImGui::End();
 }
 
+/*Copies a vscreen region, rotating the result around the center of the presented table.*/
+static void CopyVScreenRegion(SDL_Texture* texture, const SDL_Rect& src, const SDL_Rect& dst)
+{
+	auto angle = cabinet::PlayfieldRotation();
+	if (angle == 0)
+	{
+		SDL_RenderCopy(winmain::Renderer, texture, &src, &dst);
+		return;
+	}
+
+	// Rotating every part around the common center rotates the composition as a whole
+	SDL_Point center
+	{
+		render::DestinationRect.x + render::DestinationRect.w / 2 - dst.x,
+		render::DestinationRect.y + render::DestinationRect.h / 2 - dst.y
+	};
+	SDL_RenderCopyEx(winmain::Renderer, texture, &src, &dst, angle, &center, SDL_FLIP_NONE);
+}
+
 void render::PresentVScreen()
 {
 	vscreen->BlitToTexture();
 
+	auto rotated = cabinet::PlayfieldRotation() != 0;
 	if (offset_x == 0 && offset_y == 0)
 	{
-		SDL_RenderCopy(winmain::Renderer, vscreen->Texture, nullptr, &DestinationRect);
+		CopyVScreenRegion(vscreen->Texture, fullscrn::SourceRect, DestinationRect);
+	}
+	else if (cabinet::HideSidebar() || rotated)
+	{
+		// Without a sidebar to hold still, the whole presented region shifts with the nudge
+		auto scaledOffX = static_cast<int>(round(offset_x * fullscrn::ScaleX));
+		if (offset_x != 0 && scaledOffX == 0)
+			scaledOffX = Sign(offset_x);
+		auto scaledOffY = static_cast<int>(round(offset_y * fullscrn::ScaleY));
+		if (offset_y != 0 && scaledOffY == 0)
+			scaledOffY = Sign(offset_y);
+
+		auto dstRect = SDL_Rect
+		{
+			DestinationRect.x + scaledOffX, DestinationRect.y + scaledOffY,
+			DestinationRect.w, DestinationRect.h
+		};
+		CopyVScreenRegion(vscreen->Texture, fullscrn::SourceRect, dstRect);
 	}
 	else
 	{

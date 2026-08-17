@@ -289,4 +289,49 @@ struct optionsStruct
 	StringOption FontFileName;
 	StringOption Language;
 	BoolOption HideCursor;
+
+	// Cabinet mode: splits the game over playfield, backglass and DMD screens.
+	BoolOption CabinetMode;
+	StringOption CabinetMediaPath;
+
+	// Main window placement, used in single window mode
+	IntOption WindowAnchor;
+	IntOption WindowDisplay;
+	IntOption WindowX;
+	IntOption WindowY;
+	IntOption WindowWidth;
+	IntOption WindowHeight;
+
+	// Playfield, rotation applies in both modes
+	IntOption PlayfieldRotation;
+	IntOption PlayfieldDisplay;
+	IntOption PlayfieldX;
+	IntOption PlayfieldY;
+	IntOption PlayfieldWidth;
+	IntOption PlayfieldHeight;
+	BoolOption PlayfieldFullscreen;
+	BoolOption PlayfieldHideSidebar;
+
+	// Backglass
+	BoolOption BackglassEnabled;
+	IntOption BackglassDisplay;
+	IntOption BackglassX;
+	IntOption BackglassY;
+	IntOption BackglassWidth;
+	IntOption BackglassHeight;
+	BoolOption BackglassFullscreen;
+	StringOption BackglassImage;
+
+	// DMD
+	BoolOption DmdEnabled;
+	IntOption DmdDisplay;
+	IntOption DmdX;
+	IntOption DmdY;
+	IntOption DmdWidth;
+	IntOption DmdHeight;
+	BoolOption DmdFullscreen;
+	IntOption DmdColumns;
+	IntOption DmdRows;
+	StringOption DmdDotColor;
+	BoolOption DmdShowUnlitDots;
 };

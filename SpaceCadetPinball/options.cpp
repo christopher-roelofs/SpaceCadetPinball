@@ -1,6 +1,7 @@
 #include "pch.h"
 #include "options.h"
 
+#include "cabinet.h"
 #include "fullscrn.h"
 #include "midi.h"
 #include "pb.h"
@@ -152,6 +153,46 @@ optionsStruct options::Options
 	{"FontFileName", ""},
 	{"Language", translations::GetCurrentLanguage()->ShortName},
 	{"Hide Cursor", false},
+
+	{"Cabinet Mode", false},
+	{"Cabinet Media Path", "cabinet"},
+
+	{"Window Anchor", static_cast<int>(CabinetAnchor::Centered)},
+	{"Window Display", -1},
+	{"Window X", 0},
+	{"Window Y", 0},
+	{"Window Width", 0},
+	{"Window Height", 0},
+
+	{"Playfield Rotation", 0},
+	{"Playfield Display", -1},
+	{"Playfield X", 0},
+	{"Playfield Y", 0},
+	{"Playfield Width", 0},
+	{"Playfield Height", 0},
+	{"Playfield Fullscreen", true},
+	{"Playfield Hide Sidebar", true},
+
+	{"Backglass Enabled", true},
+	{"Backglass Display", -1},
+	{"Backglass X", 0},
+	{"Backglass Y", 0},
+	{"Backglass Width", 960},
+	{"Backglass Height", 540},
+	{"Backglass Fullscreen", false},
+	{"Backglass Image", "backglass.png"},
+
+	{"DMD Enabled", true},
+	{"DMD Display", -1},
+	{"DMD X", 0},
+	{"DMD Y", 560},
+	{"DMD Width", 768},
+	{"DMD Height", 192},
+	{"DMD Fullscreen", false},
+	{"DMD Columns", 128},
+	{"DMD Rows", 32},
+	{"DMD Dot Color", "FFA020"},
+	{"DMD Show Unlit Dots", true},
 };
 
 void options::InitPrimary()

@@ -12,6 +12,8 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/CMakeModules")
 if(WIN32)
    list(APPEND SDL2_PATH "${CMAKE_CURRENT_LIST_DIR}/Libs/SDL2")
    list(APPEND SDL2_MIXER_PATH "${CMAKE_CURRENT_LIST_DIR}/Libs/SDL2_mixer")
+   # Optional, only needed for PNG/JPG cabinet backglass art
+   list(APPEND SDL2_IMAGE_PATH "${CMAKE_CURRENT_LIST_DIR}/Libs/SDL2_image")
 endif()
 
 # Link mingw libs static
@@ -27,6 +29,7 @@ if(APPLE)
     set(CMAKE_OSX_ARCHITECTURES "arm64;x86_64")
     list(APPEND SDL2_PATH "${CMAKE_CURRENT_LIST_DIR}/Libs")
     list(APPEND SDL2_MIXER_PATH "${CMAKE_CURRENT_LIST_DIR}/Libs")
+    list(APPEND SDL2_IMAGE_PATH "${CMAKE_CURRENT_LIST_DIR}/Libs")
 endif()
 
 # SDL2main is not needed
@@ -35,7 +38,19 @@ set(SDL2_BUILDING_LIBRARY ON)
 find_package(SDL2 REQUIRED)
 FIND_PACKAGE(SDL2_mixer REQUIRED)
 
-include_directories(${SDL2_INCLUDE_DIR} ${SDL2_MIXER_INCLUDE_DIR})
+# Optional: SDL2_image lets cabinet mode load PNG/JPG backglass art.
+# Without it, backglass images have to be BMP files.
+option(USE_SDL_IMAGE "Load cabinet backglass art with SDL2_image (PNG/JPG support)" ON)
+if(USE_SDL_IMAGE)
+    find_package(SDL2_image QUIET)
+    if(SDL2_IMAGE_FOUND)
+        message(STATUS "SDL2_image found, cabinet backglass supports PNG/JPG")
+    else()
+        message(STATUS "SDL2_image not found, cabinet backglass is limited to BMP")
+    endif()
+endif()
+
+include_directories(${SDL2_INCLUDE_DIR} ${SDL2_MIXER_INCLUDE_DIR} ${SDL2_IMAGE_INCLUDE_DIR})
 get_property(dirs DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY INCLUDE_DIRECTORIES)
 foreach(dir ${dirs})
   message(STATUS "Include dir='${dir}'")
@@ -44,8 +59,12 @@ endforeach()
 
 
 set(SOURCE_FILES
+        SpaceCadetPinball/cabinet.cpp
+        SpaceCadetPinball/cabinet.h
         SpaceCadetPinball/control.cpp
         SpaceCadetPinball/control.h
+        SpaceCadetPinball/dmd.cpp
+        SpaceCadetPinball/dmd.h
         SpaceCadetPinball/EmbeddedData.cpp
         SpaceCadetPinball/EmbeddedData.h
         SpaceCadetPinball/font_selection.cpp
@@ -218,6 +237,11 @@ endif()
 
 target_link_libraries(SpaceCadetPinball ${SDL2_LIBRARY} ${SDL2_MIXER_LIBRARY})
 
+if(SDL2_IMAGE_FOUND)
+    target_link_libraries(SpaceCadetPinball ${SDL2_IMAGE_LIBRARY})
+    target_compile_definitions(SpaceCadetPinball PRIVATE PB_USE_SDL_IMAGE)
+endif()
+
 # On Windows, copy DLL to output
 if(WIN32)
     list(GET SDL2_LIBRARY -1 SDL2_DLL_PATH)
@@ -233,6 +257,17 @@ if(WIN32)
         COMMAND ${CMAKE_COMMAND} -E copy_if_different "${SDL2_DLL_PATH}/SDL2.dll" $<TARGET_FILE_DIR:SpaceCadetPinball>
         COMMAND ${CMAKE_COMMAND} -E copy_if_different "${SDL2_MIXER_DLL_PATH}/SDL2_mixer.dll" $<TARGET_FILE_DIR:SpaceCadetPinball>
         )
+
+    if(SDL2_IMAGE_FOUND)
+        list(GET SDL2_IMAGE_LIBRARY -1 SDL2_IMAGE_DLL_PATH)
+        get_filename_component(SDL2_IMAGE_DLL_PATH ${SDL2_IMAGE_DLL_PATH} DIRECTORY)
+        if(MINGW)
+            string(REGEX REPLACE "lib$" "bin" SDL2_IMAGE_DLL_PATH ${SDL2_IMAGE_DLL_PATH})
+        endif()
+        add_custom_command(TARGET SpaceCadetPinball POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different "${SDL2_IMAGE_DLL_PATH}/SDL2_image.dll" $<TARGET_FILE_DIR:SpaceCadetPinball>
+            )
+    endif()
 endif()
 
 if(UNIX AND NOT APPLE)

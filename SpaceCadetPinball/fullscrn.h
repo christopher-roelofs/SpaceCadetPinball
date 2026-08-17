@@ -19,6 +19,9 @@ public:
 	static float ScaleY;
 	static int OffsetX;
 	static int OffsetY;
+	/*Region of the vscreen that is presented on the playfield window.
+	  Cabinet mode crops the score sidebar out of it.*/
+	static SDL_Rect SourceRect;
 
 	static void init();
 	static void shutdown();
@@ -30,6 +33,8 @@ public:
 	static void window_size_changed();
 	static SDL_Rect GetScreenRectFromPinballRect(SDL_Rect rect);
 	static float GetScreenToPinballRatio();
+	/*Rotates a window space rect around the center of the presented table.*/
+	static SDL_Rect ApplyRotation(SDL_Rect rect);
 private :
 	static int resolution;
 

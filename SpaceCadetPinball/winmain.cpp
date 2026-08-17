@@ -1,6 +1,7 @@
 #include "pch.h"
 #include "winmain.h"
 
+#include "cabinet.h"
 #include "control.h"
 #include "EmbeddedData.h"
 #include "fullscrn.h"
@@ -250,13 +251,17 @@ int winmain::WinMain(LPCSTR lpCmdLine)
 			Options.FullScreen = true;
 		}
 
-		if (!Options.FullScreen)
+		if (!Options.FullScreen && !Options.CabinetMode)
 		{
 			auto resInfo = &fullscrn::resolution_array[fullscrn::GetResolution()];
 			SDL_SetWindowSize(MainWindow, resInfo->TableWidth, resInfo->TableHeight);
 		}
 		SDL_ShowWindow(window);
 		fullscrn::set_screen_mode(Options.FullScreen);
+
+		// Creates the backglass and DMD windows, and places the playfield window
+		cabinet::Init();
+		fullscrn::window_size_changed();
 
 		if (strstr(lpCmdLine, "-demo"))
 			pb::toggle_demo();
@@ -265,6 +270,7 @@ int winmain::WinMain(LPCSTR lpCmdLine)
 
 		MainLoop();
 
+		cabinet::Shutdown();
 		options::uninit();
 		midi::music_shutdown();
 		Sound::Close();
@@ -329,8 +335,35 @@ void winmain::MainLoop()
 				int x, y, w, h;
 				SDL_GetMouseState(&x, &y);
 				SDL_GetWindowSize(MainWindow, &w, &h);
-				float dx = static_cast<float>(last_mouse_x - x) / static_cast<float>(w);
-				float dy = static_cast<float>(y - last_mouse_y) / static_cast<float>(h);
+
+				// Undo the playfield rotation so that dragging follows the table, not the screen
+				auto screenDx = x - last_mouse_x, screenDy = y - last_mouse_y;
+				auto tableDx = screenDx, tableDy = screenDy;
+				auto tableW = w, tableH = h;
+				switch (cabinet::PlayfieldRotation())
+				{
+				case 90:
+					tableDx = screenDy;
+					tableDy = -screenDx;
+					tableW = h;
+					tableH = w;
+					break;
+				case 180:
+					tableDx = -screenDx;
+					tableDy = -screenDy;
+					break;
+				case 270:
+					tableDx = -screenDy;
+					tableDy = screenDx;
+					tableW = h;
+					tableH = w;
+					break;
+				default:
+					break;
+				}
+
+				float dx = -static_cast<float>(tableDx) / static_cast<float>(tableW);
+				float dy = static_cast<float>(tableDy) / static_cast<float>(tableH);
 				pb::ballset(dx, dy);
 
 				// Original creates continuous mouse movement with mouse capture.
@@ -389,6 +422,7 @@ void winmain::MainLoop()
 				ImGui_Render_RenderDrawData(ImGui::GetDrawData());
 
 				SDL_RenderPresent(Renderer);
+				cabinet::Render();
 				frameCounter++;
 				UpdateToFrameCounter -= UpdateToFrameRatio;
 			}
@@ -658,6 +692,10 @@ void winmain::RenderUi()
 				{
 					font_selection::ShowDialog();
 				}
+				if (ImGui::MenuItem("Cabinet Settings...", nullptr, cabinet::ShowSettingsDialog))
+				{
+					cabinet::ShowSettingsDialog ^= true;
+				}
 
 				ImGui::EndMenu();
 			}
@@ -795,6 +833,7 @@ void winmain::RenderUi()
 	if (ShowSpriteViewer)
 		render::SpriteViewer(&ShowSpriteViewer);
 	options::RenderControlDialog();
+	cabinet::RenderSettingsUi();
 	if (DispGRhistory)
 		RenderFrameTimeDialog();
 
@@ -837,6 +876,30 @@ void winmain::RenderUi()
 
 int winmain::event_handler(const SDL_Event* event)
 {
+	// Backglass and DMD windows are output only; their events never reach the game
+	switch (event->type)
+	{
+	case SDL_WINDOWEVENT:
+		if (cabinet::HandleWindowEvent(*event))
+			return 1;
+		break;
+	case SDL_MOUSEMOTION:
+		if (cabinet::OwnsWindow(event->motion.windowID))
+			return 1;
+		break;
+	case SDL_MOUSEBUTTONDOWN:
+	case SDL_MOUSEBUTTONUP:
+		if (cabinet::OwnsWindow(event->button.windowID))
+			return 1;
+		break;
+	case SDL_MOUSEWHEEL:
+		if (cabinet::OwnsWindow(event->wheel.windowID))
+			return 1;
+		break;
+	default:
+		break;
+	}
+
 	auto inputDown = false;
 	switch (event->type)
 	{
@@ -1006,9 +1069,21 @@ int winmain::event_handler(const SDL_Event* event)
 			break;
 		case SDL_WINDOWEVENT_FOCUS_LOST:
 		case SDL_WINDOWEVENT_HIDDEN:
+			// Focus moving to the backglass or DMD is not the game losing focus:
+			// muting and pausing there would silence the whole cabinet.
+			if (cabinet::AuxWindowHasFocus())
+			{
+				SDL_RaiseWindow(MainWindow);
+				break;
+			}
+
 			activated = false;
-			fullscrn::activate(0);
-			Options.FullScreen = false;
+			// A cabinet stays fullscreen; it has nothing to alt-tab to
+			if (!cabinet::CabinetModeActive())
+			{
+				fullscrn::activate(0);
+				Options.FullScreen = false;
+			}
 			Sound::Deactivate();
 			midi::music_stop();
 			has_focus = false;

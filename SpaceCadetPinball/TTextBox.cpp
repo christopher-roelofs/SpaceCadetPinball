@@ -1,6 +1,7 @@
 #include "pch.h"
 #include "TTextBox.h"
 
+#include "cabinet.h"
 #include "control.h"
 #include "fullscrn.h"
 #include "loader.h"
@@ -147,6 +148,10 @@ void TTextBox::DrawImGui()
 {
 	// Do nothing when using a font (the text will be rendered to VScreen in TTextBox::Draw)
 	if (Font || !CurrentMessage)
+		return;
+
+	// The sidebar these boxes live in is cropped in cabinet mode; the DMD shows them instead
+	if (cabinet::HideSidebar())
 		return;
 
 	char windowName[64];

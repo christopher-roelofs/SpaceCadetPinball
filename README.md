@@ -11,6 +11,30 @@ Reverse engineering of `3D Pinball for Windows - Space Cadet`, a game bundled wi
 Place compiled executable into a folder containing original game resources (not included).\
 Supports data files from Windows and Full Tilt versions of the game.
 
+## Cabinet mode
+
+Splits the game over the screens of a virtual pinball cabinet. Configure it in
+`Options -> Graphics -> Cabinet Settings...`; everything persists to the settings file.
+
+Off by default, in which case the game runs in a single window whose display, general
+position (centered, top/bottom left/right, or custom X/Y) and size are configurable.
+
+With cabinet mode on, up to three screens are used:
+
+* **Playfield** - the main window. The score sidebar is cropped away, and the table can be
+  rotated by 0, 90, 180 or 270 degrees for a portrait mounted monitor. Mouse and overlay
+  coordinates follow the rotation.
+* **Backglass** - a static image supplied by you, scaled to fit without distortion. Point
+  `Backglass Image` at a file in the media folder (`Cabinet Media Path`, default `cabinet`,
+  relative to the game data folder) or at an absolute path. PNG and JPG need `SDL2_image` at
+  build time, otherwise use BMP. Disable this screen if a frontend already draws a backglass.
+* **DMD** - a simulated dot matrix display carrying player, ball, score and mission messages.
+  The dot grid size (default 128x32), dot color and unlit dot visibility are configurable;
+  the layout adapts to the grid and wraps messages over as many lines as fit.
+
+Each screen has its own display index, position, size and fullscreen flag. A size of 0 means
+"fill the chosen display".
+
 ## Known source ports
 
 | Platform           | Author          | URL                                                                                                        |
@@ -55,17 +79,19 @@ Platforms covered by this project: desktop Windows, Linux and macOS.
 
 ## Compiling
 
-Project uses `C++11` and depends on `SDL2` libs.
+Project uses `C++11` and depends on `SDL2` libs.\
+`SDL2_image` is optional; it is only used to load PNG/JPG cabinet backglass art, and can be
+disabled with `-DUSE_SDL_IMAGE=OFF`. Without it, backglass art has to be a BMP file.
 
 ### On Windows
 
-Download and unpack devel packages for `SDL2` and `SDL2_mixer`.\
+Download and unpack devel packages for `SDL2` and `SDL2_mixer` (and optionally `SDL2_image`).\
 Set paths to them in `CMakeLists.txt`, see suggested placement in `/Libs`.\
 Compile with Visual Studio; tested with 2019.
 
 ### On Linux
 
-Install devel packages for `SDL2` and `SDL2_mixer`.\
+Install devel packages for `SDL2` and `SDL2_mixer` (and optionally `SDL2_image`).\
 Compile with CMake; tested with GCC 10, Clang 11.\
 To cross-compile for Windows, install a 64-bit version of mingw and its `SDL2` and `SDL2_mixer` distributions, then use the `mingwcc.cmake` toolchain.
 

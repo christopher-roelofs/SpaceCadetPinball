@@ -300,3 +300,6 @@ _deps
 build.ninja
 # Build directory
 /build
+
+# Build output directory, also holds local game data and cabinet media
+/bin/
