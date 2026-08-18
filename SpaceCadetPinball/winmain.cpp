@@ -958,6 +958,7 @@ int winmain::event_handler(const SDL_Event* event)
 	}
 
 	auto inputDown = false;
+	auto buttonEvent = false;
 	switch (event->type)
 	{
 	case SDL_KEYDOWN:
@@ -967,7 +968,22 @@ int winmain::event_handler(const SDL_Event* event)
 		break;
 	default: break;
 	}
-	if (!options::WaitingForInput() || !inputDown)
+	switch (event->type)
+	{
+	case SDL_KEYDOWN:
+	case SDL_KEYUP:
+	case SDL_CONTROLLERBUTTONDOWN:
+	case SDL_CONTROLLERBUTTONUP:
+		buttonEvent = true;
+		break;
+	default: break;
+	}
+
+	// The initials picker owns the buttons while it is up; letting ImGui see them too
+	// would let a nav focused dialog button fire on the same press.
+	auto imGuiBlocked = (options::WaitingForInput() && inputDown) ||
+		(high_score::CabinetEntryActive() && buttonEvent);
+	if (!imGuiBlocked)
 		ImGui_ImplSDL2_ProcessEvent(event);
 
 	bool mouseEvent;
@@ -985,7 +1001,11 @@ int winmain::event_handler(const SDL_Event* event)
 		break;
 	}
 
-	if (ImIO->WantCaptureMouse && !options::WaitingForInput())
+	// While initials are being picked with the cabinet buttons, the modal dialog would
+	// otherwise swallow every flipper and plunger press through ImGui's input capture.
+	auto cabinetEntry = high_score::CabinetEntryActive();
+
+	if (ImIO->WantCaptureMouse && !options::WaitingForInput() && !cabinetEntry)
 	{
 		if (mouse_down)
 		{
@@ -995,7 +1015,7 @@ int winmain::event_handler(const SDL_Event* event)
 		if (mouseEvent)
 			return 1;
 	}
-	if (ImIO->WantCaptureKeyboard && !options::WaitingForInput())
+	if (ImIO->WantCaptureKeyboard && !options::WaitingForInput() && !cabinetEntry)
 	{
 		switch (event->type)
 		{
