@@ -159,7 +159,6 @@ optionsStruct options::Options
 
 	{"Cabinet Mode", false},
 	{"Cabinet Media Path", "cabinet"},
-	{"Cabinet Windows On Top", true},
 	{"Cabinet Hide UI", true},
 
 	{"Window Anchor", static_cast<int>(CabinetAnchor::Centered)},

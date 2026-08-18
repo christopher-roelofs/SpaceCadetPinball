@@ -306,7 +306,6 @@ struct optionsStruct
 	// Cabinet mode: splits the game over playfield, backglass and DMD screens.
 	BoolOption CabinetMode;
 	StringOption CabinetMediaPath;
-	BoolOption CabinetWindowsOnTop;
 	BoolOption CabinetHideUi;
 
 	// Main window placement, used in single window mode

@@ -35,8 +35,8 @@ With cabinet mode on, up to three screens are used:
   grows the score digits.
 
 Each screen has its own display index, position, size and fullscreen flag. A size of 0 means
-"fill the chosen display". The backglass and DMD windows stay above other windows and out of
-the taskbar, and cabinet mode hides the menu bar and the mouse cursor; both are optional.
+"fill the chosen display". Cabinet mode also hides the menu bar and the
+mouse cursor, which is optional.
 
 Cabinet hardware and frontends are supported through:
 

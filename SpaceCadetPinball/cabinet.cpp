@@ -224,21 +224,12 @@ bool cabinet::CreateScreen(Screen& screen, const char* title, int display, int x
 	UsingSdlHint noActivation{SDL_HINT_WINDOW_NO_ACTIVATION_WHEN_SHOWN, "1"};
 #endif
 
-	Uint32 flags = SDL_WINDOW_BORDERLESS | (fullscreen ? SDL_WINDOW_FULLSCREEN_DESKTOP : 0);
-#if SDL_VERSION_ATLEAST(2, 0, 5)
-	// Keep a frontend or a desktop panel from covering the backglass, and keep these
-	// output only windows out of the taskbar.
-	flags |= SDL_WINDOW_SKIP_TASKBAR;
-	if (options::Options.CabinetWindowsOnTop)
-		flags |= SDL_WINDOW_ALWAYS_ON_TOP;
-#endif
-
 	screen.Window = SDL_CreateWindow
 	(
 		title,
 		bounds.x + x, bounds.y + y,
 		width, height,
-		flags
+		SDL_WINDOW_BORDERLESS | (fullscreen ? SDL_WINDOW_FULLSCREEN_DESKTOP : 0)
 	);
 	if (!screen.Window)
 	{
@@ -319,7 +310,9 @@ void cabinet::Init()
 
 	LoadBackglassImage();
 	ApplyMainWindowLayout();
-	RestackAuxWindows();
+
+	// The playfield window must keep input focus, aux windows are output only
+	SDL_RaiseWindow(winmain::MainWindow);
 }
 
 void cabinet::Shutdown()
@@ -328,34 +321,6 @@ void cabinet::Shutdown()
 	Backglass.Destroy();
 	Dmd.Destroy();
 	Initialized = false;
-}
-
-void cabinet::RestackAuxWindows()
-{
-	auto onTop = options::Options.CabinetWindowsOnTop ? SDL_TRUE : SDL_FALSE;
-#if SDL_VERSION_ATLEAST(2, 0, 16)
-	// Reassert the flag: two always on top windows have no defined order between them
-	if (Backglass.Window)
-		SDL_SetWindowAlwaysOnTop(Backglass.Window, onTop);
-	if (Dmd.Window)
-		SDL_SetWindowAlwaysOnTop(Dmd.Window, onTop);
-#else
-	(void)onTop;
-#endif
-
-	// The DMD is the smaller panel and often overlaps the backglass, so it is raised last
-	// and ends up on top of it.
-	if (Backglass.Window)
-		SDL_RaiseWindow(Backglass.Window);
-	if (Dmd.Window)
-		SDL_RaiseWindow(Dmd.Window);
-
-	// Raising hands out input focus, which belongs to the playfield. The aux windows keep
-	// their z order because they are flagged always on top.
-	if (winmain::MainWindow)
-		SDL_RaiseWindow(winmain::MainWindow);
-
-	BackglassDirty = true;
 }
 
 void cabinet::ApplyVSync(int enabled)
@@ -798,9 +763,8 @@ bool cabinet::HandleWindowEvent(const SDL_Event& event)
 			SDL_HideWindow(Dmd.Window);
 		break;
 	case SDL_WINDOWEVENT_FOCUS_GAINED:
-		// Clicking an aux window can pull it above the others; put the stack back in order
-		// and hand focus back to the playfield, since these windows are output only.
-		RestackAuxWindows();
+		// Aux windows are output only, hand focus back to the playfield
+		SDL_RaiseWindow(winmain::MainWindow);
 		break;
 	case SDL_WINDOWEVENT_EXPOSED:
 	case SDL_WINDOWEVENT_SHOWN:
@@ -891,7 +855,7 @@ void cabinet::RenderSettingsUi()
 			opt.BackglassWidth.V, opt.BackglassHeight.V, opt.BackglassFullscreen.V,
 			opt.DmdEnabled.V, opt.DmdDisplay.V, opt.DmdX.V, opt.DmdY.V, opt.DmdWidth.V, opt.DmdHeight.V,
 			opt.DmdFullscreen.V, opt.DmdColumns.V, opt.DmdRows.V, opt.DmdShowUnlitDots.V,
-			opt.CabinetWindowsOnTop.V, opt.CabinetHideUi.V, opt.ControllerAxisDeadzone.V,
+			opt.CabinetHideUi.V, opt.ControllerAxisDeadzone.V,
 			opt.ShowMenu.V, opt.HideCursor.V,
 		};
 
@@ -915,8 +879,6 @@ void cabinet::RenderSettingsUi()
 
 		if (opt.CabinetMode)
 		{
-			screensChanged |= ImGui::Checkbox("Keep backglass and DMD above other windows",
-			                                  &opt.CabinetWindowsOnTop.V);
 			if (ImGui::Checkbox("Hide menu bar and cursor", &opt.CabinetHideUi.V) && opt.CabinetHideUi)
 			{
 				opt.ShowMenu = false;
