@@ -98,6 +98,8 @@ private:
 
 	static void RenderBackglass();
 	static void RenderDmd();
+	/*Pushes the composed dot canvas to the DMD window, skipping unchanged frames.*/
+	static void PresentDmdCanvas();
 
 	static std::string GetFieldText(TextField field);
 };

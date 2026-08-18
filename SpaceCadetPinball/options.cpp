@@ -196,7 +196,7 @@ optionsStruct options::Options
 	{"DMD Fullscreen", false},
 	{"DMD Columns", 128},
 	{"DMD Rows", 48},
-	{"DMD Dot Color", "FFA020"},
+	{"DMD Dot Color", "7858DC"},
 	{"DMD Show Unlit Dots", true},
 };
 

@@ -22,7 +22,9 @@ cabinet::Screen cabinet::Backglass{};
 cabinet::Screen cabinet::Dmd{};
 SDL_Texture* cabinet::BackglassImage = nullptr;
 DotMatrix cabinet::DmdCanvas{128, 48};
-ColorRgba cabinet::DmdColor = ColorRgba{255, 160, 32, 255};
+// Matches the colour of the original score reels and text boxes on the sidebar
+static constexpr ColorRgba DefaultDmdColor{120, 88, 220, 255};
+ColorRgba cabinet::DmdColor = DefaultDmdColor;
 bool cabinet::Initialized = false;
 
 // The backglass is a static image: repaint it only when it or its window changes
@@ -304,7 +306,7 @@ void cabinet::Init()
 	}
 
 	DmdCanvas.Resize(std::max(16, opt.DmdColumns.V), std::max(7, opt.DmdRows.V));
-	DmdColor = ParseHexColor(opt.DmdDotColor.V, ColorRgba{255, 160, 32, 255});
+	DmdColor = ParseHexColor(opt.DmdDotColor.V, DefaultDmdColor);
 
 	Initialized = true;
 
@@ -566,6 +568,35 @@ void cabinet::RenderDmd()
 	auto columns = DmdCanvas.Columns(), rows = DmdCanvas.Rows();
 	DmdCanvas.Clear();
 
+	// Entering initials takes over the whole panel, the way a real cabinet does it
+	if (high_score::CabinetEntryActive())
+	{
+		auto initials = high_score::GetEntryInitials();
+		auto slot = high_score::GetEntrySlot();
+
+		// Blink the character being picked
+		if ((SDL_GetTicks() / 250) % 2 == 0 && slot < static_cast<int>(initials.size()))
+			initials[slot] = '_';
+
+		auto titleScale = std::max(1, columns / 128);
+		auto bigScale = std::max(2, (rows - DotMatrix::TextHeight(titleScale) - 6) / DotMatrix::GlyphHeight);
+		DmdCanvas.DrawText(DotMatrix::Align::Center, 1, "ENTER YOUR INITIALS", titleScale);
+
+		// Wide spacing so the three slots read as separate characters
+		auto spacing = DotMatrix::TextWidth("W", bigScale) + bigScale * 3;
+		auto totalWidth = spacing * static_cast<int>(initials.size()) - bigScale * 3;
+		auto x = (columns - totalWidth) / 2;
+		auto y = DotMatrix::TextHeight(titleScale) + 4;
+		for (auto ch : initials)
+		{
+			char text[2]{ch, 0};
+			DmdCanvas.DrawText(x, y, text, bigScale);
+			x += spacing;
+		}
+		PresentDmdCanvas();
+		return;
+	}
+
 	// Three bands: a status line, the score, then the message lines.
 	// Small text is sized by panel width, not height: at 128 columns scale 1 gives 21
 	// characters per line, and scaling it up with the row count would starve the text.
@@ -663,6 +694,11 @@ void cabinet::RenderDmd()
 		}
 	}
 
+	PresentDmdCanvas();
+}
+
+void cabinet::PresentDmdCanvas()
+{
 	// Drawing thousands of dots on a second GL context costs milliseconds a frame, and the
 	// panel only changes when the text does. Redraw only when the dot pattern differs.
 	static uint64_t lastContentHash = 0;
@@ -946,7 +982,7 @@ void cabinet::RenderSettingsUi()
 					}
 					StringInput("Dot color (RRGGBB)", opt.DmdDotColor, 16);
 					if (ImGui::IsItemDeactivatedAfterEdit())
-						DmdColor = ParseHexColor(opt.DmdDotColor.V, ColorRgba{255, 160, 32, 255});
+						DmdColor = ParseHexColor(opt.DmdDotColor.V, DefaultDmdColor);
 					ImGui::Checkbox("Show unlit dots", &opt.DmdShowUnlitDots.V);
 				}
 			}

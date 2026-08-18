@@ -1,4 +1,5 @@
 #pragma once
+#include "options.h"
 
 struct high_score_struct
 {
@@ -25,7 +26,20 @@ public:
 	static void show_high_score_dialog();
 	static void show_and_set_high_score_dialog(high_score_entry score);
 	static void RenderHighScoreDialog();
+
+	/*Cabinet initials entry: driven by the flippers and the plunger, no keyboard needed.*/
+	static bool CabinetEntryActive();
+	/*Consumes a game binding while entering initials; returns true if it was handled.*/
+	static bool HandleCabinetInput(const std::vector<GameBindings>& bindings);
+	/*Initials as typed so far, for mirroring onto the DMD.*/
+	static std::string GetEntryInitials();
+	static int GetEntrySlot() { return EntrySlot; }
 private:
+	static constexpr int EntrySlots = 3;
+	static bool CabinetEntry, EntrySubmit;
+	static int EntrySlot;
+	static int EntryChars[EntrySlots];
+
 	static bool dlg_enter_name;
 	static high_score_entry DlgData;
 	static bool ShowDialog;

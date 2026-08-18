@@ -48,6 +48,9 @@ Cabinet hardware and frontends are supported through:
 * **Command line overrides** - `-cabinet` / `-nocabinet`, plus `-playfield-display N`,
   `-backglass-display N` and `-dmd-display N`, let a frontend drive the layout without
   touching the settings file. Overrides are not saved back over the stored options.
+* **High score entry without a keyboard** - in cabinet mode a new high score asks for three
+  initials picked with the cabinet buttons: the flippers cycle the character, the plunger
+  accepts it, and `<` rubs out the previous one. The entry is mirrored on the DMD.
 
 ## Known source ports
 

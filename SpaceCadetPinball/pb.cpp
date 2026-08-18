@@ -570,6 +570,11 @@ void pb::InputDown(GameInput input)
 	}
 
 	const auto bindings = options::MapGameInput(input);
+
+	// Entering initials on a cabinet takes over the flippers and the plunger
+	if (high_score::HandleCabinetInput(bindings))
+		return;
+
 	for (const auto binding : bindings)
 	{
 		winmain::HandleGameBinding(binding, true);

@@ -1,6 +1,7 @@
 #include "pch.h"
 #include "high_score.h"
 
+#include "cabinet.h"
 #include "options.h"
 #include "pb.h"
 #include "score.h"
@@ -11,6 +12,74 @@ bool high_score::ShowDialog = false;
 high_score_entry high_score::DlgData;
 std::vector<high_score_entry> high_score::ScoreQueue;
 high_score_struct high_score::highscore_table[5];
+bool high_score::CabinetEntry = false, high_score::EntrySubmit = false;
+int high_score::EntrySlot = 0;
+int high_score::EntryChars[high_score::EntrySlots]{};
+constexpr int high_score::EntrySlots;
+
+// Wheel of characters the flippers cycle through. '<' rubs out the previous slot.
+static const char EntryCharset[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 <";
+static constexpr int EntryCharCount = sizeof EntryCharset - 1;
+static constexpr int RuboutIndex = EntryCharCount - 1;
+
+bool high_score::CabinetEntryActive()
+{
+	return CabinetEntry;
+}
+
+std::string high_score::GetEntryInitials()
+{
+	std::string result;
+	for (auto i = 0; i < EntrySlots; i++)
+		result += i <= EntrySlot ? EntryCharset[EntryChars[i]] : ' ';
+	return result;
+}
+
+bool high_score::HandleCabinetInput(const std::vector<GameBindings>& bindings)
+{
+	if (!CabinetEntry)
+		return false;
+
+	auto handled = false;
+	for (const auto binding : bindings)
+	{
+		switch (binding)
+		{
+		case GameBindings::LeftFlipper:
+			EntryChars[EntrySlot] = (EntryChars[EntrySlot] + EntryCharCount - 1) % EntryCharCount;
+			handled = true;
+			break;
+		case GameBindings::RightFlipper:
+			EntryChars[EntrySlot] = (EntryChars[EntrySlot] + 1) % EntryCharCount;
+			handled = true;
+			break;
+		case GameBindings::Plunger:
+		case GameBindings::NewGame:
+			if (EntryChars[EntrySlot] == RuboutIndex)
+			{
+				// Rubout steps back instead of entering a character
+				if (EntrySlot > 0)
+				{
+					EntryChars[EntrySlot] = 0;
+					EntrySlot--;
+				}
+			}
+			else if (EntrySlot + 1 < EntrySlots)
+			{
+				EntrySlot++;
+			}
+			else
+			{
+				EntrySubmit = true;
+			}
+			handled = true;
+			break;
+		default:
+			break;
+		}
+	}
+	return handled;
+}
 
 int high_score::read()
 {
@@ -141,6 +210,12 @@ void high_score::RenderHighScoreDialog()
 				}
 			}
 
+			// A cabinet has no keyboard, so initials are picked with the flippers
+			CabinetEntry = dlg_enter_name && cabinet::CabinetModeActive();
+			EntrySubmit = false;
+			EntrySlot = 0;
+			std::fill(std::begin(EntryChars), std::end(EntryChars), 0);
+
 			ImGui::OpenPopup(pb::get_rc_string(Msg::HIGHSCORES_Caption));
 		}
 	}
@@ -170,16 +245,42 @@ void high_score::RenderHighScoreDialog()
 				{
 					offset = -1;
 					score = DlgData.Entry.Score;
-					ImGui::PushItemWidth(200);
+					if (CabinetEntry)
+					{
+						// Slots are drawn one character at a time so the active one can blink
+						for (auto slot = 0; slot < EntrySlots; slot++)
+						{
+							if (slot)
+								ImGui::SameLine(0, 8);
 
-					if (ImGui::IsWindowAppearing())
-					{
-						ImGui::SetKeyboardFocusHere(0);
+							char label[2]{EntryCharset[EntryChars[slot]], 0};
+							if (slot > EntrySlot)
+								label[0] = '_';
+
+							auto active = slot == EntrySlot;
+							if (active && (SDL_GetTicks() / 250) % 2 == 0)
+								label[0] = '_';
+							if (active)
+								ImGui::PushStyleColor(ImGuiCol_Text, pb::TextBoxColor);
+							ImGui::TextUnformatted(label);
+							if (active)
+								ImGui::PopStyleColor();
+						}
+						textBoxSubmit = EntrySubmit;
 					}
-					if (ImGui::InputText("", DlgData.Entry.Name, IM_ARRAYSIZE(DlgData.Entry.Name),
-						ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_AutoSelectAll))
+					else
 					{
-						textBoxSubmit = true;
+						ImGui::PushItemWidth(200);
+
+						if (ImGui::IsWindowAppearing())
+						{
+							ImGui::SetKeyboardFocusHere(0);
+						}
+						if (ImGui::InputText("", DlgData.Entry.Name, IM_ARRAYSIZE(DlgData.Entry.Name),
+							ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_AutoSelectAll))
+						{
+							textBoxSubmit = true;
+						}
 					}
 				}
 				else
@@ -194,18 +295,32 @@ void high_score::RenderHighScoreDialog()
 			ImGui::EndTable();
 		}
 
+		if (CabinetEntry)
+			ImGui::TextDisabled("Flippers change the letter, plunger accepts it. '<' rubs out.");
+
 		if (ImGui::Button(pb::get_rc_string(Msg::GenericOk)) || textBoxSubmit)
 		{
 			if (dlg_enter_name)
 			{
+				if (CabinetEntry)
+				{
+					auto initials = GetEntryInitials();
+					while (!initials.empty() && initials.back() == ' ')
+						initials.pop_back();
+					snprintf(DlgData.Entry.Name, sizeof DlgData.Entry.Name, "%s", initials.c_str());
+				}
 				place_new_score_into(DlgData);
 			}
+			CabinetEntry = false;
 			ImGui::CloseCurrentPopup();
 		}
 
 		ImGui::SameLine();
 		if (ImGui::Button(pb::get_rc_string(Msg::GenericCancel)))
+		{
+			CabinetEntry = false;
 			ImGui::CloseCurrentPopup();
+		}
 
 		ImGui::SameLine();
 		if (ImGui::Button(pb::get_rc_string(Msg::HIGHSCORES_Clear)))
