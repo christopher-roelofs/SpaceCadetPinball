@@ -260,11 +260,14 @@ int winmain::WinMain(LPCSTR lpCmdLine)
 		options::InitSecondary();
 
 		Sound::Init(mixOpened, Options.SoundChannels, Options.Sounds, Options.SoundVolume);
+
+		// Audio being unavailable for this run, through -noaudio or a busy device, must not
+		// be written back as a preference: that silently mutes every later run too.
 		if (!mixOpened)
-			Options.Sounds = false;
+			overrideBool(Options.Sounds, false);
 
 		if (!midi::music_init(mixOpened, Options.MusicVolume))
-			Options.Music = false;
+			overrideBool(Options.Music, false);
 
 		if (pb::init())
 		{

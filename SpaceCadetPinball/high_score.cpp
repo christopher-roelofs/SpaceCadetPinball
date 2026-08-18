@@ -53,6 +53,12 @@ bool high_score::HandleCabinetInput(const std::vector<GameBindings>& bindings)
 			EntryChars[EntrySlot] = (EntryChars[EntrySlot] + 1) % EntryCharCount;
 			handled = true;
 			break;
+		case GameBindings::BottomTableBump:
+			// Start the initials over from the first slot
+			EntrySlot = 0;
+			std::fill(std::begin(EntryChars), std::end(EntryChars), 0);
+			handled = true;
+			break;
 		case GameBindings::Plunger:
 		case GameBindings::NewGame:
 			if (EntryChars[EntrySlot] == RuboutIndex)
@@ -296,7 +302,7 @@ void high_score::RenderHighScoreDialog()
 		}
 
 		if (CabinetEntry)
-			ImGui::TextDisabled("Flippers change the letter, plunger accepts it. '<' rubs out.");
+			ImGui::TextDisabled("Flippers change the letter, plunger accepts it.\n'<' rubs out, bottom bump clears.");
 
 		if (ImGui::Button(pb::get_rc_string(Msg::GenericOk)) || textBoxSubmit)
 		{

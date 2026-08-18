@@ -50,7 +50,8 @@ Cabinet hardware and frontends are supported through:
   touching the settings file. Overrides are not saved back over the stored options.
 * **High score entry without a keyboard** - in cabinet mode a new high score asks for three
   initials picked with the cabinet buttons: the flippers cycle the character, the plunger
-  accepts it, and `<` rubs out the previous one. The entry is mirrored on the DMD.
+  accepts it, `<` rubs out the previous one and the bottom bump clears the whole entry. It is
+  mirrored on the DMD.
 
 ## Known source ports
 
