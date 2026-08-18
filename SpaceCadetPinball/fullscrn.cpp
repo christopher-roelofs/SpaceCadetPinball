@@ -159,57 +159,28 @@ void fullscrn::window_size_changed()
 	};
 }
 
-SDL_Rect fullscrn::ApplyRotation(SDL_Rect rect)
-{
-	auto angle = cabinet::PlayfieldRotation();
-	if (angle == 0)
-		return rect;
-
-	auto centerX = render::DestinationRect.x + render::DestinationRect.w / 2;
-	auto centerY = render::DestinationRect.y + render::DestinationRect.h / 2;
-
-	// Screen space is y down, so a clockwise turn maps (u, v) to (-v, u)
-	auto rotate = [angle, centerX, centerY](int x, int y, int& outX, int& outY)
-	{
-		auto u = x - centerX, v = y - centerY;
-		switch (angle)
-		{
-		case 90:
-			outX = centerX - v;
-			outY = centerY + u;
-			break;
-		case 180:
-			outX = centerX - u;
-			outY = centerY - v;
-			break;
-		case 270:
-			outX = centerX + v;
-			outY = centerY - u;
-			break;
-		default:
-			outX = x;
-			outY = y;
-			break;
-		}
-	};
-
-	int x1, y1, x2, y2;
-	rotate(rect.x, rect.y, x1, y1);
-	rotate(rect.x + rect.w, rect.y + rect.h, x2, y2);
-	return SDL_Rect{std::min(x1, x2), std::min(y1, y2), std::abs(x2 - x1), std::abs(y2 - y1)};
-}
-
 SDL_Rect fullscrn::GetScreenRectFromPinballRect(SDL_Rect rect)
 {
+	// The result positions ImGui windows, and ImGui lays out in the rotated canvas, so this
+	// maps into canvas space. The table is centered there, just as it is in the window.
+	auto& destination = render::DestinationRect;
+	auto originX = destination.x, originY = destination.y;
+	if (cabinet::PlayfieldRotation() % 180 != 0)
+	{
+		int width, height;
+		SDL_GetRendererOutputSize(winmain::Renderer, &width, &height);
+		originX = (height - destination.w) / 2;
+		originY = (width - destination.h) / 2;
+	}
+
 	SDL_Rect converted_rect;
+	converted_rect.x = (rect.x - SourceRect.x) * destination.w / SourceRect.w + originX;
+	converted_rect.y = (rect.y - SourceRect.y) * destination.h / SourceRect.h + originY;
 
-	converted_rect.x = (rect.x - SourceRect.x) * render::DestinationRect.w / SourceRect.w + render::DestinationRect.x;
-	converted_rect.y = (rect.y - SourceRect.y) * render::DestinationRect.h / SourceRect.h + render::DestinationRect.y;
+	converted_rect.w = rect.w * destination.w / SourceRect.w;
+	converted_rect.h = rect.h * destination.h / SourceRect.h;
 
-	converted_rect.w = rect.w * render::DestinationRect.w / SourceRect.w;
-	converted_rect.h = rect.h * render::DestinationRect.h / SourceRect.h;
-
-	return ApplyRotation(converted_rect);
+	return converted_rect;
 }
 
 float fullscrn::GetScreenToPinballRatio()

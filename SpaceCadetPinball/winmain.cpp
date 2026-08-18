@@ -66,6 +66,82 @@ static bool GetCmdLineInt(LPCSTR cmdLine, const char* flag, int& value)
 	return sscanf(arg, "%d", &value) == 1;
 }
 
+/*
+ * With a rotated playfield the whole UI has to turn with it, or dialogs face the wrong way
+ * on a portrait mounted cabinet monitor. ImGui lays out in a canvas whose dimensions are
+ * swapped for a quarter turn, and its output is rotated into window space here. Rotation is
+ * by multiples of 90 degrees, so vertices and clip rects map exactly.
+ */
+static void RotateImGuiDrawData(ImDrawData* drawData, int angle, int windowWidth, int windowHeight)
+{
+	if (angle == 0 || !drawData)
+		return;
+
+	auto rotate = [angle, windowWidth, windowHeight](float x, float y, float& outX, float& outY)
+	{
+		switch (angle)
+		{
+		case 90:
+			outX = windowWidth - y;
+			outY = x;
+			break;
+		case 180:
+			outX = windowWidth - x;
+			outY = windowHeight - y;
+			break;
+		case 270:
+			outX = y;
+			outY = windowHeight - x;
+			break;
+		default:
+			outX = x;
+			outY = y;
+			break;
+		}
+	};
+
+	for (auto listIndex = 0; listIndex < drawData->CmdListsCount; listIndex++)
+	{
+		auto cmdList = drawData->CmdLists[listIndex];
+		for (auto& vertex : cmdList->VtxBuffer)
+			rotate(vertex.pos.x, vertex.pos.y, vertex.pos.x, vertex.pos.y);
+
+		for (auto& cmd : cmdList->CmdBuffer)
+		{
+			float x1, y1, x2, y2;
+			rotate(cmd.ClipRect.x, cmd.ClipRect.y, x1, y1);
+			rotate(cmd.ClipRect.z, cmd.ClipRect.w, x2, y2);
+			cmd.ClipRect = ImVec4(std::min(x1, x2), std::min(y1, y2), std::max(x1, x2), std::max(y1, y2));
+		}
+	}
+
+	// Clipping and the framebuffer size are computed from this, and both are window space now
+	drawData->DisplaySize = ImVec2(static_cast<float>(windowWidth), static_cast<float>(windowHeight));
+}
+
+/*Maps a window space point into the rotated ImGui canvas, so the mouse still lines up.*/
+static void RotateMouseIntoImGuiCanvas(int angle, int windowWidth, int windowHeight, Sint32& x, Sint32& y)
+{
+	auto inX = x, inY = y;
+	switch (angle)
+	{
+	case 90:
+		x = inY;
+		y = windowWidth - inX;
+		break;
+	case 180:
+		x = windowWidth - inX;
+		y = windowHeight - inY;
+		break;
+	case 270:
+		x = windowHeight - inY;
+		y = inX;
+		break;
+	default:
+		break;
+	}
+}
+
 int winmain::WinMain(LPCSTR lpCmdLine)
 {
 	std::set_new_handler(memalloc_failure);
@@ -460,6 +536,15 @@ void winmain::MainLoop()
 					ImGui::SetMouseCursor(ImGuiMouseCursor_None);
 				ImGui_ImplSDL2_NewFrame();
 				ImGui_Render_NewFrame();
+
+				// A quarter turn swaps the canvas the UI is laid out in
+				auto uiRotation = cabinet::PlayfieldRotation();
+				if (uiRotation == 90 || uiRotation == 270)
+				{
+					auto& displaySize = ImIO->DisplaySize;
+					displaySize = ImVec2(displaySize.y, displaySize.x);
+				}
+
 				ImGui::NewFrame();
 				RenderUi();
 
@@ -470,6 +555,11 @@ void winmain::MainLoop()
 				render::PresentVScreen();
 
 				ImGui::Render();
+				{
+					int windowWidth, windowHeight;
+					SDL_GetRendererOutputSize(Renderer, &windowWidth, &windowHeight);
+					RotateImGuiDrawData(ImGui::GetDrawData(), uiRotation, windowWidth, windowHeight);
+				}
 				ImGui_Render_RenderDrawData(ImGui::GetDrawData());
 
 				SDL_RenderPresent(Renderer);
@@ -987,7 +1077,36 @@ int winmain::event_handler(const SDL_Event* event)
 	auto imGuiBlocked = (options::WaitingForInput() && inputDown) ||
 		(high_score::CabinetEntryActive() && buttonEvent);
 	if (!imGuiBlocked)
-		ImGui_ImplSDL2_ProcessEvent(event);
+	{
+		// ImGui lays out in a rotated canvas, so mouse positions have to be mapped into it
+		auto uiRotation = cabinet::PlayfieldRotation();
+		if (uiRotation != 0)
+		{
+			int windowWidth, windowHeight;
+			SDL_GetRendererOutputSize(Renderer, &windowWidth, &windowHeight);
+
+			SDL_Event rotated = *event;
+			switch (rotated.type)
+			{
+			case SDL_MOUSEMOTION:
+				RotateMouseIntoImGuiCanvas(uiRotation, windowWidth, windowHeight,
+				                           rotated.motion.x, rotated.motion.y);
+				break;
+			case SDL_MOUSEBUTTONDOWN:
+			case SDL_MOUSEBUTTONUP:
+				RotateMouseIntoImGuiCanvas(uiRotation, windowWidth, windowHeight,
+				                           rotated.button.x, rotated.button.y);
+				break;
+			default:
+				break;
+			}
+			ImGui_ImplSDL2_ProcessEvent(&rotated);
+		}
+		else
+		{
+			ImGui_ImplSDL2_ProcessEvent(event);
+		}
+	}
 
 	bool mouseEvent;
 	switch (event->type)

@@ -33,8 +33,6 @@ public:
 	static void window_size_changed();
 	static SDL_Rect GetScreenRectFromPinballRect(SDL_Rect rect);
 	static float GetScreenToPinballRatio();
-	/*Rotates a window space rect around the center of the presented table.*/
-	static SDL_Rect ApplyRotation(SDL_Rect rect);
 private :
 	static int resolution;
 
