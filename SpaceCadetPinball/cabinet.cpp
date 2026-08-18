@@ -319,9 +319,7 @@ void cabinet::Init()
 
 	LoadBackglassImage();
 	ApplyMainWindowLayout();
-
-	// The playfield window must keep input focus, aux windows are output only
-	SDL_RaiseWindow(winmain::MainWindow);
+	RestackAuxWindows();
 }
 
 void cabinet::Shutdown()
@@ -330,6 +328,34 @@ void cabinet::Shutdown()
 	Backglass.Destroy();
 	Dmd.Destroy();
 	Initialized = false;
+}
+
+void cabinet::RestackAuxWindows()
+{
+	auto onTop = options::Options.CabinetWindowsOnTop ? SDL_TRUE : SDL_FALSE;
+#if SDL_VERSION_ATLEAST(2, 0, 16)
+	// Reassert the flag: two always on top windows have no defined order between them
+	if (Backglass.Window)
+		SDL_SetWindowAlwaysOnTop(Backglass.Window, onTop);
+	if (Dmd.Window)
+		SDL_SetWindowAlwaysOnTop(Dmd.Window, onTop);
+#else
+	(void)onTop;
+#endif
+
+	// The DMD is the smaller panel and often overlaps the backglass, so it is raised last
+	// and ends up on top of it.
+	if (Backglass.Window)
+		SDL_RaiseWindow(Backglass.Window);
+	if (Dmd.Window)
+		SDL_RaiseWindow(Dmd.Window);
+
+	// Raising hands out input focus, which belongs to the playfield. The aux windows keep
+	// their z order because they are flagged always on top.
+	if (winmain::MainWindow)
+		SDL_RaiseWindow(winmain::MainWindow);
+
+	BackglassDirty = true;
 }
 
 void cabinet::ApplyVSync(int enabled)
@@ -772,8 +798,9 @@ bool cabinet::HandleWindowEvent(const SDL_Event& event)
 			SDL_HideWindow(Dmd.Window);
 		break;
 	case SDL_WINDOWEVENT_FOCUS_GAINED:
-		// Aux windows are output only, hand focus back to the playfield
-		SDL_RaiseWindow(winmain::MainWindow);
+		// Clicking an aux window can pull it above the others; put the stack back in order
+		// and hand focus back to the playfield, since these windows are output only.
+		RestackAuxWindows();
 		break;
 	case SDL_WINDOWEVENT_EXPOSED:
 	case SDL_WINDOWEVENT_SHOWN:

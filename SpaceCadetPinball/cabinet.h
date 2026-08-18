@@ -59,6 +59,9 @@ public:
 	/*Applies a VSync setting to the backglass and DMD renderers.*/
 	static void ApplyVSync(int enabled);
 
+	/*Reasserts always on top and puts the DMD above the backglass.*/
+	static void RestackAuxWindows();
+
 	static void RenderSettingsUi();
 
 	static const char* AnchorName(CabinetAnchor anchor);
