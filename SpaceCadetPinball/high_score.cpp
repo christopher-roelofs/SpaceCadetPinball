@@ -227,6 +227,10 @@ void high_score::RenderHighScoreDialog()
 	}
 
 	bool unused_open = true, textBoxSubmit = false;
+
+	// Keep it centered whatever the orientation is: the main viewport follows the rotated
+	// ImGui canvas, so its centre is the middle of the screen as the player sees it.
+	ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(), ImGuiCond_Always, ImVec2(0.5f, 0.5f));
 	if (ImGui::BeginPopupModal(pb::get_rc_string(Msg::HIGHSCORES_Caption), &unused_open, ImGuiWindowFlags_AlwaysAutoResize))
 	{
 		if (ImGui::BeginTable("table1", 3, ImGuiTableFlags_Borders))
