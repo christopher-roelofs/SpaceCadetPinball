@@ -539,10 +539,27 @@ void winmain::MainLoop()
 
 				// A quarter turn swaps the canvas the UI is laid out in
 				auto uiRotation = cabinet::PlayfieldRotation();
-				if (uiRotation == 90 || uiRotation == 270)
+				if (uiRotation != 0)
 				{
-					auto& displaySize = ImIO->DisplaySize;
-					displaySize = ImVec2(displaySize.y, displaySize.x);
+					if (uiRotation == 90 || uiRotation == 270)
+					{
+						auto& displaySize = ImIO->DisplaySize;
+						displaySize = ImVec2(displaySize.y, displaySize.x);
+					}
+
+					// ImGui_ImplSDL2_NewFrame just queued the raw window space mouse position,
+					// which would hit test the UI as if it were never rotated. Queue the mapped
+					// position after it, so that is the one NewFrame ends up applying.
+					if (SDL_GetMouseFocus() == MainWindow)
+					{
+						int windowWidth, windowHeight, mouseX, mouseY;
+						SDL_GetRendererOutputSize(Renderer, &windowWidth, &windowHeight);
+						SDL_GetMouseState(&mouseX, &mouseY);
+
+						Sint32 canvasX = mouseX, canvasY = mouseY;
+						RotateMouseIntoImGuiCanvas(uiRotation, windowWidth, windowHeight, canvasX, canvasY);
+						ImIO->AddMousePosEvent(static_cast<float>(canvasX), static_cast<float>(canvasY));
+					}
 				}
 
 				ImGui::NewFrame();
