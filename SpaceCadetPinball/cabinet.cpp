@@ -894,8 +894,6 @@ void cabinet::RenderSettingsUi()
 			opt.HideCursor = true;
 		}
 
-		ImGui::TextDisabled("For analog plunger and nudge hardware, bind axes in Player Controls.");
-
 		ImGui::Separator();
 		if (ImGui::CollapsingHeader("Playfield", ImGuiTreeNodeFlags_DefaultOpen))
 		{

@@ -39,15 +39,7 @@ enum class InputTypes
 	Keyboard,
 	Mouse,
 	GameController,
-	/*Controller axis pushed past the deadzone. Value is axis * 2, +1 for the positive side.*/
-	GameControllerAxis,
 };
-
-/*Packs a controller axis and the direction it was pushed into a GameInput value.*/
-constexpr int MakeAxisInputValue(int axis, bool positive)
-{
-	return axis * 2 + (positive ? 1 : 0);
-}
 
 struct GameInput
 {
