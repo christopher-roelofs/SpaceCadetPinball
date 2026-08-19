@@ -301,7 +301,6 @@ struct optionsStruct
 	BoolOption HideCursor;
 	BoolOption VSync;
 	BoolOption PauseOnFocusLoss;
-	IntOption ControllerAxisDeadzone;
 
 	// Cabinet mode: splits the game over playfield, backglass and DMD screens.
 	StringOption CabinetMediaPath;

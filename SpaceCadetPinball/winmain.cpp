@@ -1338,15 +1338,15 @@ int winmain::event_handler(const SDL_Event* event)
 	case SDL_CONTROLLERAXISMOTION:
 		{
 			// Cabinet hardware (analog plungers, nudge sensors) reports axes, not buttons.
-			// Each axis half is turned into a press/release pair around the deadzone, with
-			// hysteresis so a resting axis cannot chatter.
+			// Each axis half is turned into a press/release pair around a fixed threshold.
 			static bool axisHeld[SDL_CONTROLLER_AXIS_MAX][2]{};
 			auto axis = event->caxis.axis;
 			if (axis < 0 || axis >= SDL_CONTROLLER_AXIS_MAX)
 				break;
 
-			auto deadzone = Clamp(Options.ControllerAxisDeadzone.V, 1000, 32000);
-			auto release = deadzone * 3 / 4;
+			// About half of the axis travel, with the release lower than the press so a
+			// resting or noisy axis cannot chatter between the two.
+			constexpr int deadzone = 16000, release = deadzone * 3 / 4;
 			for (auto positive = 0; positive <= 1; positive++)
 			{
 				auto value = positive ? event->caxis.value : -event->caxis.value;

@@ -864,7 +864,7 @@ void cabinet::RenderSettingsUi()
 			opt.BackglassWidth.V, opt.BackglassHeight.V, opt.BackglassFullscreen.V,
 			opt.DmdEnabled.V, opt.DmdDisplay.V, opt.DmdX.V, opt.DmdY.V, opt.DmdWidth.V, opt.DmdHeight.V,
 			opt.DmdFullscreen.V, opt.DmdColumns.V, opt.DmdRows.V, opt.DmdShowUnlitDots.V,
-			opt.CabinetHideUi.V, opt.ControllerAxisDeadzone.V,
+			opt.CabinetHideUi.V,
 			opt.ShowMenu.V, opt.HideCursor.V,
 		};
 
@@ -894,10 +894,7 @@ void cabinet::RenderSettingsUi()
 			opt.HideCursor = true;
 		}
 
-		ImGui::TextUnformatted("Controller axis deadzone");
-		ImGui::SliderInt("##Deadzone", &opt.ControllerAxisDeadzone.V, 1000, 32000, "%d",
-		                 ImGuiSliderFlags_AlwaysClamp);
-		ImGui::TextDisabled("For analog plunger and nudge hardware. Bind axes in Player Controls.");
+		ImGui::TextDisabled("For analog plunger and nudge hardware, bind axes in Player Controls.");
 
 		ImGui::Separator();
 		if (ImGui::CollapsingHeader("Playfield", ImGuiTreeNodeFlags_DefaultOpen))

@@ -44,7 +44,7 @@ mouse cursor, which is optional.
 Cabinet hardware and frontends are supported through:
 
 * **Analog axes** - controller axes can be bound like buttons in `Player Controls`, for analog
-  plungers and nudge sensors. An axis counts as pressed past the configurable deadzone.
+  plungers and nudge sensors. An axis counts as pressed once it is pushed about halfway.
 * **VSync** - on by default, since tearing is obvious on a large playfield screen.
 * **Pause On Focus Loss** - turn it off so a cabinet keeps playing when a frontend or an
   overlay takes focus. Otherwise losing focus mutes the audio and stops the game.
