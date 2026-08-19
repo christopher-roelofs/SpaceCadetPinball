@@ -25,7 +25,7 @@ DotMatrix cabinet::DmdCanvas{128, 48};
 // Matches the colour of the original score reels and text boxes on the sidebar
 static constexpr ColorRgba DefaultDmdColor{120, 88, 220, 255};
 ColorRgba cabinet::DmdColor = DefaultDmdColor;
-bool cabinet::Initialized = false;
+bool cabinet::Initialized = false, cabinet::Requested = false;
 
 // The backglass is a static image: repaint it only when it or its window changes
 static bool BackglassDirty = true;
@@ -71,9 +71,19 @@ void cabinet::Screen::Destroy()
 	Window = nullptr;
 }
 
+void cabinet::RequestCabinetMode()
+{
+	Requested = true;
+}
+
+bool cabinet::CabinetModeRequested()
+{
+	return Requested;
+}
+
 bool cabinet::CabinetModeActive()
 {
-	return options::Options.CabinetMode && Initialized;
+	return Requested && Initialized;
 }
 
 bool cabinet::HideSidebar()
@@ -138,7 +148,7 @@ void cabinet::ApplyMainWindowLayout()
 		return;
 
 	auto& opt = options::Options;
-	auto cabinetMode = opt.CabinetMode.V;
+	auto cabinetMode = Requested;
 	auto display = cabinetMode ? opt.PlayfieldDisplay.V : opt.WindowDisplay.V;
 	auto width = cabinetMode ? opt.PlayfieldWidth.V : opt.WindowWidth.V;
 	auto height = cabinetMode ? opt.PlayfieldHeight.V : opt.WindowHeight.V;
@@ -265,7 +275,7 @@ void cabinet::Init()
 {
 	auto& opt = options::Options;
 	Initialized = false;
-	if (!opt.CabinetMode)
+	if (!Requested)
 	{
 		ApplyMainWindowLayout();
 		return;
@@ -846,7 +856,6 @@ void cabinet::RenderSettingsUi()
 	{
 		const int values[]
 		{
-			opt.CabinetMode.V,
 			opt.WindowAnchor.V, opt.WindowDisplay.V, opt.WindowX.V, opt.WindowY.V,
 			opt.WindowWidth.V, opt.WindowHeight.V,
 			opt.PlayfieldRotation.V, opt.PlayfieldDisplay.V, opt.PlayfieldX.V, opt.PlayfieldY.V,
@@ -873,17 +882,16 @@ void cabinet::RenderSettingsUi()
 		auto screensChanged = false;
 		auto mediaChanged = false;
 
-		screensChanged |= ImGui::Checkbox("Cabinet mode", &opt.CabinetMode.V);
-		ImGui::SameLine();
-		ImGui::TextDisabled("(off = single window)");
+		if (CabinetModeRequested())
+			ImGui::TextUnformatted("Cabinet mode is active for this run.");
+		else
+			ImGui::TextDisabled("Single window. Start the game with -cabinet for the three screen layout.");
 
-		if (opt.CabinetMode)
+		if (ImGui::Checkbox("Hide menu bar and cursor in cabinet mode", &opt.CabinetHideUi.V) &&
+			opt.CabinetHideUi && CabinetModeRequested())
 		{
-			if (ImGui::Checkbox("Hide menu bar and cursor", &opt.CabinetHideUi.V) && opt.CabinetHideUi)
-			{
-				opt.ShowMenu = false;
-				opt.HideCursor = true;
-			}
+			opt.ShowMenu = false;
+			opt.HideCursor = true;
 		}
 
 		ImGui::TextUnformatted("Controller axis deadzone");
@@ -902,33 +910,32 @@ void cabinet::RenderSettingsUi()
 				layoutChanged = true;
 			}
 
-			if (opt.CabinetMode)
-			{
-				layoutChanged |= ImGui::Checkbox("Hide score sidebar", &opt.PlayfieldHideSidebar.V);
-				DisplayCombo("Playfield display", opt.PlayfieldDisplay);
-				layoutChanged |= ImGui::Checkbox("Fullscreen##playfield", &opt.PlayfieldFullscreen.V);
-				if (!opt.PlayfieldFullscreen)
-					GeometryControls("playfield", opt.PlayfieldX, opt.PlayfieldY, opt.PlayfieldWidth,
-					                 opt.PlayfieldHeight);
-			}
-			else
-			{
-				const char* anchors[static_cast<int>(CabinetAnchor::Count)]{};
-				for (auto i = 0; i < static_cast<int>(CabinetAnchor::Count); i++)
-					anchors[i] = AnchorName(static_cast<CabinetAnchor>(i));
-
-				auto anchorIndex = Clamp(opt.WindowAnchor.V, 0, static_cast<int>(CabinetAnchor::Count) - 1);
-				if (ImGui::Combo("Window position", &anchorIndex, anchors, IM_ARRAYSIZE(anchors)))
-				{
-					opt.WindowAnchor.V = anchorIndex;
-					layoutChanged = true;
-				}
-				DisplayCombo("Window display", opt.WindowDisplay);
-				GeometryControls("window", opt.WindowX, opt.WindowY, opt.WindowWidth, opt.WindowHeight);
-			}
+			layoutChanged |= ImGui::Checkbox("Hide score sidebar (cabinet mode)", &opt.PlayfieldHideSidebar.V);
+			DisplayCombo("Playfield display", opt.PlayfieldDisplay);
+			layoutChanged |= ImGui::Checkbox("Fullscreen##playfield", &opt.PlayfieldFullscreen.V);
+			if (!opt.PlayfieldFullscreen)
+				GeometryControls("playfield", opt.PlayfieldX, opt.PlayfieldY, opt.PlayfieldWidth,
+				                 opt.PlayfieldHeight);
+			ImGui::TextDisabled("Playfield placement is used in cabinet mode.");
 		}
 
-		if (opt.CabinetMode)
+		if (ImGui::CollapsingHeader("Single Window", ImGuiTreeNodeFlags_DefaultOpen))
+		{
+			const char* anchors[static_cast<int>(CabinetAnchor::Count)]{};
+			for (auto i = 0; i < static_cast<int>(CabinetAnchor::Count); i++)
+				anchors[i] = AnchorName(static_cast<CabinetAnchor>(i));
+
+			auto anchorIndex = Clamp(opt.WindowAnchor.V, 0, static_cast<int>(CabinetAnchor::Count) - 1);
+			if (ImGui::Combo("Window position", &anchorIndex, anchors, IM_ARRAYSIZE(anchors)))
+			{
+				opt.WindowAnchor.V = anchorIndex;
+				layoutChanged = true;
+			}
+			DisplayCombo("Window display", opt.WindowDisplay);
+			GeometryControls("window", opt.WindowX, opt.WindowY, opt.WindowWidth, opt.WindowHeight);
+			ImGui::TextDisabled("Used when the game runs without -cabinet.");
+		}
+
 		{
 			if (ImGui::CollapsingHeader("Backglass", ImGuiTreeNodeFlags_DefaultOpen))
 			{

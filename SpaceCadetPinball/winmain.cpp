@@ -279,10 +279,8 @@ int winmain::WinMain(LPCSTR lpCmdLine)
 			option = display;
 		};
 
-		if (strstr(lpCmdLine, "-nocabinet"))
-			overrideBool(Options.CabinetMode, false);
-		else if (strstr(lpCmdLine, "-cabinet"))
-			overrideBool(Options.CabinetMode, true);
+		if (strstr(lpCmdLine, "-cabinet"))
+			cabinet::RequestCabinetMode();
 		overrideDisplay(Options.PlayfieldDisplay, "-playfield-display");
 		overrideDisplay(Options.BackglassDisplay, "-backglass-display");
 		overrideDisplay(Options.DmdDisplay, "-dmd-display");
@@ -370,7 +368,7 @@ int winmain::WinMain(LPCSTR lpCmdLine)
 			Options.FullScreen = true;
 		}
 
-		if (!Options.FullScreen && !Options.CabinetMode)
+		if (!Options.FullScreen && !cabinet::CabinetModeRequested())
 		{
 			auto resInfo = &fullscrn::resolution_array[fullscrn::GetResolution()];
 			SDL_SetWindowSize(MainWindow, resInfo->TableWidth, resInfo->TableHeight);

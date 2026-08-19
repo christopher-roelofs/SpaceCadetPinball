@@ -157,7 +157,6 @@ optionsStruct options::Options
 	{"Pause On Focus Loss", true},
 	{"Controller Axis Deadzone", 16000},
 
-	{"Cabinet Mode", false},
 	{"Cabinet Media Path", "cabinet"},
 	{"Cabinet Hide UI", true},
 

@@ -31,6 +31,11 @@ class cabinet
 public:
 	static bool ShowSettingsDialog;
 
+	/*Cabinet mode is a launch time decision, made with -cabinet, not a saved setting:
+	  the screen layout cannot be rearranged sensibly while the game is running.*/
+	static void RequestCabinetMode();
+	static bool CabinetModeRequested();
+
 	/*True when cabinet mode is enabled and at least the playfield was set up for it.*/
 	static bool CabinetModeActive();
 	/*True when the score sidebar should be cropped off of the playfield.*/
@@ -89,7 +94,7 @@ private:
 	static SDL_Texture* BackglassImage;
 	static DotMatrix DmdCanvas;
 	static ColorRgba DmdColor;
-	static bool Initialized;
+	static bool Initialized, Requested;
 
 	static bool CreateScreen(Screen& screen, const char* title, int display, int x, int y, int width, int height,
 	                         bool fullscreen);

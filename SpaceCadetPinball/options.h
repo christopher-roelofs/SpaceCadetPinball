@@ -304,7 +304,6 @@ struct optionsStruct
 	IntOption ControllerAxisDeadzone;
 
 	// Cabinet mode: splits the game over playfield, backglass and DMD screens.
-	BoolOption CabinetMode;
 	StringOption CabinetMediaPath;
 	BoolOption CabinetHideUi;
 

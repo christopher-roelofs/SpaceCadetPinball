@@ -13,13 +13,16 @@ Supports data files from Windows and Full Tilt versions of the game.
 
 ## Cabinet mode
 
-Splits the game over the screens of a virtual pinball cabinet. Configure it in
-`Options -> Graphics -> Cabinet Settings...`; everything persists to the settings file.
+Splits the game over the screens of a virtual pinball cabinet. Start the game with
+`-cabinet` to enable it; there is no setting for it, because the screen layout cannot be
+rearranged sensibly while the game is running. Everything else is configured in
+`Options -> Graphics -> Cabinet Settings...`, is visible whether or not cabinet mode is
+active, and persists to the settings file.
 
-Off by default, in which case the game runs in a single window whose display, general
-position (centered, top/bottom left/right, or custom X/Y) and size are configurable.
+Without `-cabinet` the game runs in a single window whose display, general position
+(centered, top/bottom left/right, or custom X/Y) and size are configurable.
 
-With cabinet mode on, up to three screens are used:
+In cabinet mode, up to three screens are used:
 
 * **Playfield** - the main window. The score sidebar is cropped away, and the table can be
   rotated by 0, 90, 180 or 270 degrees for a portrait mounted monitor. Mouse and overlay
@@ -45,9 +48,9 @@ Cabinet hardware and frontends are supported through:
 * **VSync** - on by default, since tearing is obvious on a large playfield screen.
 * **Pause On Focus Loss** - turn it off so a cabinet keeps playing when a frontend or an
   overlay takes focus. Otherwise losing focus mutes the audio and stops the game.
-* **Command line overrides** - `-cabinet` / `-nocabinet`, plus `-playfield-display N`,
-  `-backglass-display N` and `-dmd-display N`, let a frontend drive the layout without
-  touching the settings file. Overrides are not saved back over the stored options.
+* **Command line** - `-cabinet` enables cabinet mode for the run, and `-playfield-display N`,
+  `-backglass-display N` and `-dmd-display N` let a frontend drive the layout without
+  touching the settings file. Display overrides are not saved back over the stored options.
 * **High score entry without a keyboard** - in cabinet mode a new high score asks for three
   initials picked with the cabinet buttons: the flippers cycle the character, the plunger
   accepts it, `<` rubs out the previous one and the bottom bump clears the whole entry. It is
